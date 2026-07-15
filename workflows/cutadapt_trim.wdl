@@ -39,7 +39,7 @@ task CutadaptTask {
   # PacBio SMRTbell ヘアピンアダプター配列(固定値)。
   # 使用しているケミストリ/SMRT Link のバージョンによって異なる場合があるため、
   # 実行前に自身のライブラリのアダプター配列と一致するか必ず確認すること。
-  String adapter_sequence = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
+  String adapter_sequence = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
 
   # PacBio C2 プライマー配列(固定値)
   String c2_primer_sequence = "AAAAAAAAAAAAAAAAAATTAACGGAGGAGGAGGA"
