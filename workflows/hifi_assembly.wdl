@@ -2,20 +2,32 @@ version 1.0
 
 ## PacBio unaligned BAM を入力とし、
 ##   1. bam2fastq.wdl (BamToFastq) で FASTQ に変換
-##   2. cutadapt_trim.wdl (CutadaptTrim) でアダプター/C2 プライマーを除去
-##   3. seqkit_stats.wdl (SeqkitStats) でリード統計を計算し、ヒトゲノムサイズから
+##   2. seqkit_stats.wdl (SeqkitStats) で cutadapt 適用前のリード統計を計算
+##   3. cutadapt_trim.wdl (CutadaptTask) でアダプター/C2 プライマーを除去
+##   4. seqkit_stats.wdl (SeqkitStats) でトリム後のリード統計を計算し、ヒトゲノムサイズから
 ##      推定カバレッジ (--hom-cov) を算出
-##   4. hifiasm でゲノムアセンブリ
+##   5. hifiasm でゲノムアセンブリ(Oxford Nanopore ultra-long read が与えられた場合は
+##      --ul オプションで併用し、seqkit_stats.wdl (SeqkitStats) でその統計も計算する)
+##   6. partition_sexchr.wdl (YakSexchrPartition, ExtractPartitionedHaplotypeFasta) で
+##      hifiasm の hap1/hap2 contig を chrX/chrY の帰属に基づいて振り分け直す
 ## を行うエンドツーエンドのワークフロー。
 
 import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
 import "seqkit_stats.wdl" as seqkit_wf
+import "estimate_hom_coverage.wdl" as estimate_hom_coverage_wf
+import "hifiasm_assembly.wdl" as hifiasm_assembly_wf
+import "partition_sexchr.wdl" as partition_sexchr_wf
 
 workflow HifiAssembly {
   input {
     File unaligned_bam
     String sample_name
+    File? ont_ul_fastq
+    Int? ul_cut
+    File chrY_no_par_yak
+    File chrX_no_par_yak
+    File par_yak
   }
 
   call bam2fastq_wf.BamToFastq as ConvertBamToFastq {
@@ -24,10 +36,16 @@ workflow HifiAssembly {
       sample_name = sample_name
   }
 
-  call cutadapt_wf.CutadaptTrim as TrimAdapters {
+  call seqkit_wf.SeqkitStats as ComputeRawReadStats {
     input:
       fastq = ConvertBamToFastq.fastq,
       sample_name = sample_name
+  }
+
+  call cutadapt_wf.CutadaptTask as TrimAdapters {
+    input:
+      fastq = ConvertBamToFastq.fastq,
+      output_prefix = sample_name
   }
 
   call seqkit_wf.SeqkitStats as ComputeReadStats {
@@ -36,98 +54,56 @@ workflow HifiAssembly {
       sample_name = sample_name
   }
 
-  call EstimateHomCoverage {
+  call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
     input:
       seqkit_stats = ComputeReadStats.stats
   }
 
-  call HifiasmAssembly {
+  if (defined(ont_ul_fastq)) {
+    call seqkit_wf.SeqkitStats as ComputeOntUlReadStats {
+      input:
+        fastq = select_first([ont_ul_fastq]),
+        sample_name = sample_name
+    }
+  }
+
+  call hifiasm_assembly_wf.HifiasmAssembly as HifiasmAssembly {
     input:
       fastq = TrimAdapters.trimmed_fastq,
       output_prefix = sample_name,
-      hom_cov = EstimateHomCoverage.hom_cov
+      hom_cov = EstimateHomCoverage.hom_cov,
+      ont_ul_fastq = ont_ul_fastq,
+      ul_cut = ul_cut
+  }
+
+  call partition_sexchr_wf.YakSexchrPartition as PartitionSexChr {
+    input:
+      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta,
+      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta,
+      chrY_no_par_yak = chrY_no_par_yak,
+      chrX_no_par_yak = chrX_no_par_yak,
+      par_yak = par_yak,
+      output_prefix = sample_name
+  }
+
+  call partition_sexchr_wf.ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
+    input:
+      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta,
+      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta,
+      hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
+      hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
+      output_prefix = sample_name
   }
 
   output {
     File fastq = ConvertBamToFastq.fastq
+    File raw_read_stats = ComputeRawReadStats.stats
     File trimmed_fastq = TrimAdapters.trimmed_fastq
     File cutadapt_report = TrimAdapters.report
     File read_stats = ComputeReadStats.stats
-    Int estimated_hom_cov = EstimateHomCoverage.hom_cov
+    File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
-    File hap1_contigs_fasta = HifiasmAssembly.hap1_contigs_fasta
-    File hap2_contigs_fasta = HifiasmAssembly.hap2_contigs_fasta
-  }
-}
-
-task EstimateHomCoverage {
-  input {
-    File seqkit_stats
-
-    String docker = "ubuntu:22.04"
-    Int cpu = 1
-    Int memory_gb = 2
-  }
-
-  # ヒトゲノムの概算サイズ (~3.1 Gbp)
-  Int genome_size = 3100000000
-
-  command <<<
-    set -euo pipefail
-
-    # seqkit stats -a -T の出力からヘッダ名で "sum_len" 列を特定し、
-    # ヒトゲノムサイズで割って概算カバレッジを算出する
-    awk -F'\t' -v genome_size=~{genome_size} '
-      NR==1 {
-        for (i=1; i<=NF; i++) if ($i=="sum_len") col=i
-        next
-      }
-      { printf "%d\n", $col / genome_size }
-    ' ~{seqkit_stats}
-  >>>
-
-  output {
-    Int hom_cov = read_int(stdout())
-  }
-
-  runtime {
-    docker: docker
-    cpu: cpu
-    memory: "~{memory_gb} GB"
-  }
-}
-
-task HifiasmAssembly {
-  input {
-    File fastq
-    String output_prefix
-    Int hom_cov
-
-    String docker = "quay.io/biocontainers/hifiasm:0.19.8--h5b5514e_0"
-    Int cpu = 32
-    Int memory_gb = 128
-    Int disk_gb = 10 * ceil(size(fastq, "GB")) + 50
-  }
-
-  command <<<
-    set -euo pipefail
-
-    hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA --hom-cov ~{hom_cov} ~{fastq}
-
-    # hifiasm は GFA のみを出力するため、hap1/hap2 contig の FASTA を抽出する
-    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap1.p_ctg.gfa > ~{output_prefix}.bp.hap1.p_ctg.fasta
-    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap2.p_ctg.gfa > ~{output_prefix}.bp.hap2.p_ctg.fasta
-  >>>
-
-  output {
-    File hap1_contigs_fasta = "~{output_prefix}.bp.hap1.p_ctg.fasta"
-    File hap2_contigs_fasta = "~{output_prefix}.bp.hap2.p_ctg.fasta"
-  }
-
-  runtime {
-    docker: docker
-    cpu: cpu
-    memory: "~{memory_gb} GB"
-    disks: "local-disk ~{disk_gb} SSD"
+    File hap1_contigs_fasta = ExtractPartitionedFasta.new_hap1_fasta
+    File hap2_contigs_fasta = ExtractPartitionedFasta.new_hap2_fasta
   }
 }

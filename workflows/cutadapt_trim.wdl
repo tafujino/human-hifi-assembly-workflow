@@ -1,27 +1,9 @@
 version 1.0
 
 ## cutadapt を用いて PacBio HiFi リードに残存する SMRTbell アダプター配列および
-## C2 プライマー配列を除去するワークフロー。
+## C2 プライマー配列を除去するタスク。
 ## アダプター/プライマーを含むリードはコンカテマー/キメラである可能性が高いため、
 ## トリムではなくリードごと破棄する(--discard-trimmed)。
-
-workflow CutadaptTrim {
-  input {
-    File fastq
-    String sample_name
-  }
-
-  call CutadaptTask {
-    input:
-      fastq = fastq,
-      output_prefix = sample_name
-  }
-
-  output {
-    File trimmed_fastq = CutadaptTask.trimmed_fastq
-    File report = CutadaptTask.report
-  }
-}
 
 task CutadaptTask {
   input {
