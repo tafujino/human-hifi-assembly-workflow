@@ -47,6 +47,8 @@ task HifiasmAssembly {
     # are the first thing anyone needs when an assembly looks wrong, so the log is kept as
     # an output. stdout carries no data, so merging the two streams is safe; pipefail makes
     # sure a hifiasm failure is not masked by tee.
+    # --dual-scaf scaffolds each haplotype using the other, so these outputs are scaffolds
+    # rather than strictly contigs and may contain N runs of up to --scaf-gap (default 3 Mb).
     hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA \
       ~{"--hom-cov " + hom_cov} \
       ~{"--ul " + ont_ul_fastq} \

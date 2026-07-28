@@ -82,6 +82,9 @@ applied — and, for that reason, does *not* change when `chrM` is appended to h
 what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 carries no mtDNA;
 [docs/mitochondrial.md](docs/mitochondrial.md) explains why hap2 and why last.
 
+hifiasm runs with `--dual-scaf`, which scaffolds each haplotype using the other, so these
+are scaffolds rather than strictly contigs and may contain N runs of up to 3 Mb.
+
 `sexchr_grouped` is `groupxy.pl`'s output, one row per contig. Three of its columns matter:
 column 2 is the contig, column 3 the haplotype hifiasm assigned it to, and column 4 the
 haplotype it ended up in. Reading them together matters more than it looks, because
