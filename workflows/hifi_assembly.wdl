@@ -25,8 +25,8 @@ import "partition_sexchr.wdl" as partition_sexchr_wf
 
 workflow HifiAssembly {
   input {
-    File unaligned_bam
     String sample_name
+    File unaligned_bam
     File? ont_ul_fastq
     Int? ul_cut
     File chrY_no_par_yak
@@ -38,14 +38,14 @@ workflow HifiAssembly {
 
   call bam2fastq_wf.BamToFastq as ConvertBamToFastq {
     input:
-      unaligned_bam = unaligned_bam,
-      sample_name = sample_name
+      sample_name = sample_name,
+      unaligned_bam = unaligned_bam
   }
 
   call seqkit_wf.SeqkitStats as ComputeRawReadStats {
     input:
-      fastq = ConvertBamToFastq.fastq,
-      sample_name = sample_name
+      sample_name = sample_name,
+      fastq = ConvertBamToFastq.fastq
   }
 
   call cutadapt_wf.CutadaptTask as TrimAdapters {
@@ -56,8 +56,8 @@ workflow HifiAssembly {
 
   call seqkit_wf.SeqkitStats as ComputeReadStats {
     input:
-      fastq = TrimAdapters.trimmed_fastq,
-      sample_name = sample_name
+      sample_name = sample_name,
+      fastq = TrimAdapters.trimmed_fastq
   }
 
   call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
@@ -68,8 +68,8 @@ workflow HifiAssembly {
   if (defined(ont_ul_fastq)) {
     call seqkit_wf.SeqkitStats as ComputeOntUlReadStats {
       input:
-        fastq = select_first([ont_ul_fastq]),
-        sample_name = sample_name
+        sample_name = sample_name,
+        fastq = select_first([ont_ul_fastq])
     }
   }
 

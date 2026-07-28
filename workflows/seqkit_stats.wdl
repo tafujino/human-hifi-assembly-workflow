@@ -4,8 +4,8 @@ version 1.0
 
 workflow SeqkitStats {
   input {
-    File fastq
     String sample_name
+    File fastq
   }
 
   call SeqkitStatsTask {

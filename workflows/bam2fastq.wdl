@@ -6,8 +6,8 @@ version 1.0
 
 workflow BamToFastq {
   input {
-    File unaligned_bam
     String sample_name
+    File unaligned_bam
   }
 
   call PbIndex {
