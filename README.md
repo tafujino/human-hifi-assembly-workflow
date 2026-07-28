@@ -1,13 +1,14 @@
 # human-hifi-assembly-workflow
 
-WDL workflows that take a PacBio HiFi unaligned BAM for a human sample and produce a
-phased, diploid de novo assembly.
+WDL workflows that take one or more PacBio HiFi unaligned BAMs for a human sample and
+produce a phased, diploid de novo assembly.
 
 ## Pipeline
 
 `workflows/hifi_assembly.wdl` (workflow `HifiAssembly`) is the entry point and runs:
 
-1. **BAM to FASTQ** — `bam2fastq.wdl`, pbtk (`pbindex` + `bam2fastq`)
+1. **BAM to FASTQ** — `bam2fastq.wdl`, pbtk (`pbindex` + `bam2fastq`). Takes any number of
+   BAMs, typically one per SMRT cell, and merges them into one read set
 2. **Raw read statistics** — `seqkit_stats.wdl`
 3. **Adapter and C2 primer removal** — `cutadapt_trim.wdl`. Reads containing an
    adapter or primer are likely concatemers, so the whole read is discarded
@@ -37,13 +38,17 @@ the ones that are not obvious. Start there rather than here.
 
 `miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
-explain each one. Five are worth calling out:
+explain each one. Six are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
   sample it would force both X homologues into hap2. Any other value is rejected
   outright rather than silently treated as female, and the check runs at the very start of
   the workflow, so a typo costs a minute rather than an assembly.
+* **`unaligned_bams`** — an array, so a sample sequenced over several SMRT cells is given as
+  several BAMs and merged into one read set; `bam2fastq` does the merging itself. Supplying
+  the same BAM twice is rejected rather than silently doubling its reads. Two BAMs may share
+  a file name.
 * **`pansn_contig_names`** — on by default, so contigs are named
   `<sample>#<haplotype>#<hifiasm name>`; see the outputs section. `sample_name` therefore
   becomes part of every contig ID.

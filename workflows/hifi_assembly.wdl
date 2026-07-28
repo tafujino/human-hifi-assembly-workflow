@@ -1,11 +1,12 @@
 version 1.0
 
-## End-to-end workflow that takes a PacBio unaligned BAM as input and:
+## End-to-end workflow that takes one or more PacBio unaligned BAMs as input and:
 ##   0. checks the inputs that nothing else would catch until hours in, with
 ##      validate_inputs.wdl (ValidateInputs), which also turns sample_sex into the Boolean
 ##      that step 8 needs. It depends on no computed value, so it runs immediately and a
 ##      malformed input fails the run in its first seconds
-##   1. converts it to FASTQ with bam2fastq.wdl (BamToFastq)
+##   1. converts them to one FASTQ with bam2fastq.wdl (BamToFastq), which indexes each BAM
+##      and lets bam2fastq merge them; every later step sees a single read set
 ##   2. computes read statistics before applying cutadapt with seqkit_stats.wdl (SeqkitStats)
 ##   3. removes adapter/C2 primer sequences with cutadapt_trim.wdl (CutadaptTask)
 ##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and,
@@ -56,7 +57,7 @@ workflow HifiAssembly {
   parameter_meta {
     sample_name: "Prefix for every output file. Must match [A-Za-z0-9._-]+: every task interpolates it into shell commands and output paths unquoted, and ValidateInputs is what enforces that."
     sample_sex: "\"male\" or \"female\", case-insensitive. Required: chrX/chrY partitioning must not be applied to a female sample, and an unrecognised value fails the run rather than being assumed. Checked at the start of the run, not at the partitioning step."
-    unaligned_bam: "PacBio HiFi unaligned BAM. Its .pbi is created during the run."
+    unaligned_bams: "One or more PacBio HiFi unaligned BAMs, typically one per SMRT cell. They are merged into a single read set, and a .pbi is created for each during the run. Supplying the same BAM twice is rejected rather than doubling its reads."
     ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
     estimate_hom_cov: "Derive hifiasm's --hom-cov from the trimmed read statistics instead of letting hifiasm infer it. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
@@ -76,7 +77,9 @@ workflow HifiAssembly {
     # "male" or "female" (case-insensitive); required because chrX/chrY partitioning
     # must not be applied to female samples.
     String sample_sex
-    File unaligned_bam
+    # One or more, typically one per SMRT cell. Array[File]+ rather than Array[File], so an
+    # empty list is a type error rather than an assembly of nothing.
+    Array[File]+ unaligned_bams
     File? ont_ul_fastq
     Int? ul_cut
     # Whether to derive hifiasm's --hom-cov from the trimmed read statistics instead of
@@ -130,7 +133,7 @@ workflow HifiAssembly {
   call bam2fastq_wf.BamToFastq as ConvertBamToFastq {
     input:
       sample_name = sample_name,
-      unaligned_bam = unaligned_bam
+      unaligned_bams = unaligned_bams
   }
 
   call seqkit_wf.SeqkitStats as ComputeRawReadStats {
