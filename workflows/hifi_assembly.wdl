@@ -164,14 +164,10 @@ workflow HifiAssembly {
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
-    # The graphs the hap1/hap2 FASTA were extracted from, plus hifiasm's log. Kept because
-    # without them a problem found downstream cannot be traced back, and the assembly cannot
-    # be re-scaffolded, without re-running hifiasm.
+    # hifiasm's log, which records the homozygous coverage it inferred and how aggressively
+    # it purged. The assembly graphs are deliberately not delivered; re-run the workflow if
+    # an assembly needs revisiting.
     File hifiasm_log = HifiasmAssembly.hifiasm_log
-    File hifiasm_hap1_gfa_gz = HifiasmAssembly.hap1_contigs_gfa_gz
-    File hifiasm_hap2_gfa_gz = HifiasmAssembly.hap2_contigs_gfa_gz
-    # Empty unless keep_unitig_graphs was set on HifiasmAssembly.
-    Array[File] hifiasm_unitig_graphs_gz = HifiasmAssembly.unitig_graphs_gz
 
     String mito_assembly_status = MitoAssembly.mito_assembly_status
     File mito_fasta_gz = MitoAssembly.mito_fasta_gz
