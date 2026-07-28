@@ -129,16 +129,17 @@ task Bam2Fastq {
     Int disk_gb = 4 * ceil(size(bams, "GB")) + 20
   }
 
-  # The paths reach the script through files rather than through a joined string, so that a
-  # path containing a space cannot split into two.
-  File bams_list = write_lines(bams)
-  File pbis_list = write_lines(pbis)
-
   command <<<
     set -euo pipefail
 
-    mapfile -t bams < ~{bams_list}
-    mapfile -t pbis < ~{pbis_list}
+    # Each path reaches the script on its own line of a here-string rather than through a
+    # joined string, so that a path containing a space cannot split into two. Unlike a
+    # write_lines() file, this interpolates every path directly into the command itself, the
+    # same way PbIndex's bam substitution does -- which matters on backends that decide which
+    # host directories to make visible inside the container by scanning the rendered
+    # command rather than by resolving files hidden inside another file's contents.
+    mapfile -t bams <<< "~{sep='\n' bams}"
+    mapfile -t pbis <<< "~{sep='\n' pbis}"
 
     if [[ "${#bams[@]}" -ne "${#pbis[@]}" ]]; then
       echo "error: ${#bams[@]} BAM(s) but ${#pbis[@]} index(es); they must correspond one to one" >&2
@@ -147,7 +148,7 @@ task Bam2Fastq {
 
     # See the header comment: the same BAM twice would double every read it holds, and
     # nothing downstream looks for duplicate read names.
-    LC_ALL=C sort ~{bams_list} | uniq -d > repeated.txt
+    printf '%s\n' "${bams[@]}" | LC_ALL=C sort | uniq -d > repeated.txt
     if [[ -s repeated.txt ]]; then
       echo "error: the same BAM was supplied more than once:" >&2
       head -5 repeated.txt >&2
