@@ -1,0 +1,51 @@
+name: Build Docker images
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'docker/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: list
+        run: |
+          images=$(for dir in docker/*/; do
+            name="$(basename "$dir")"
+            if [[ -f "$dir/Dockerfile" ]]; then
+              echo "$name"
+            fi
+          done | jq -R . | jq -sc .)
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.discover.outputs.images) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        env:
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+        run: ./docker/build_and_push.sh --push "${{ matrix.image }}"
