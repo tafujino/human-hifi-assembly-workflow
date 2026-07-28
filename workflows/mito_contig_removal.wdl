@@ -233,6 +233,21 @@ task IdentifyMitoContigs {
       --min-coverage-perc ~{min_coverage_perc}
 
     echo "[info] contigs flagged as mitochondrial: $(wc -l < ~{output_prefix}.mito_contig_ids.txt)" >&2
+
+    # A contig that is almost entirely mitochondrial and was kept anyway is the one case
+    # worth pointing at, because a threshold rather than the evidence decided it -- in
+    # practice the length ceiling keeping a long tandem concatemer, the known miss described
+    # at the top of this file. The summary TSV has always recorded it, but a file nobody
+    # opens is a record, not a signal. 95 is hardcoded: it changes no output, only this
+    # line, so it is not part of the interface.
+    awk -F'\t' '
+      NR > 1 && $5 > 95 && $7 == "no" { n++; ids = ids (n > 1 ? ", " : "") $1 }
+      END {
+        if (n) printf "[warn] %d contig(s) over 95%% mitochondrial were kept: %s;" \
+                      " a threshold decided this, not the alignment -- see the summary TSV\n", \
+                      n, ids > "/dev/stderr"
+      }
+    ' ~{output_prefix}.mito_blast_summary.tsv
   >>>
 
   output {
