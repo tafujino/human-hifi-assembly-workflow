@@ -6,7 +6,7 @@ task EstimateHomCoverage {
   input {
     File seqkit_stats
 
-    String docker = "ubuntu:22.04"
+    String docker = "ubuntu:24.04"
     Int cpu = 1
     Int memory_gb = 2
   }

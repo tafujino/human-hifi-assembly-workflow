@@ -31,7 +31,7 @@ task PbIndex {
   input {
     File bam
 
-    String docker = "quay.io/biocontainers/pbtk:3.1.1--h9ee0642_0"
+    String docker = "quay.io/biocontainers/pbtk:3.5.0--h9ee0642_0"
     Int cpu = 4
     Int memory_gb = 8
     Int disk_gb = 2 * ceil(size(bam, "GB")) + 20
@@ -66,7 +66,7 @@ task Bam2Fastq {
     File pbi
     String output_prefix
 
-    String docker = "quay.io/biocontainers/pbtk:3.1.1--h9ee0642_0"
+    String docker = "quay.io/biocontainers/pbtk:3.5.0--h9ee0642_0"
     Int cpu = 4
     Int memory_gb = 16
     Int disk_gb = 4 * ceil(size(bam, "GB")) + 20

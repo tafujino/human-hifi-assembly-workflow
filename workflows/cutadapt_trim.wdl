@@ -12,7 +12,7 @@ task CutadaptTask {
 
     Float error_rate = 0.1
 
-    String docker = "quay.io/biocontainers/cutadapt:4.9--py310h4b81fae_0"
+    String docker = "quay.io/biocontainers/cutadapt:5.2--py313hd978853_2"
     Int cpu = 4
     Int memory_gb = 8
     Int disk_gb = 2 * ceil(size(fastq, "GB")) + 20

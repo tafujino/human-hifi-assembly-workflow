@@ -24,7 +24,7 @@ task SeqkitStatsTask {
     File fastq
     String output_prefix
 
-    String docker = "quay.io/biocontainers/seqkit:2.8.2--h9ee0642_0"
+    String docker = "quay.io/biocontainers/seqkit:2.13.0--he881be0_0"
     Int cpu = 2
     Int memory_gb = 4
     Int disk_gb = 2 * ceil(size(fastq, "GB")) + 20

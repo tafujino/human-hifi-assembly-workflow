@@ -11,7 +11,8 @@ task HifiasmAssembly {
     File? ont_ul_fastq
     Int? ul_cut
 
-    String docker = "quay.io/biocontainers/hifiasm:0.19.8--h5b5514e_0"
+    # 0.19.8 does not support --telo-m (added in 0.19.9), so do not downgrade below 0.19.9.
+    String docker = "quay.io/biocontainers/hifiasm:0.25.0--h5ca1c30_0"
     Int cpu = 32
     Int memory_gb = 128
     Int disk_gb = 10 * ceil(size(fastq, "GB") + size(ont_ul_fastq, "GB")) + 50

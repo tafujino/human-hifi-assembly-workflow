@@ -175,7 +175,7 @@ task RemoveMitoContigs {
     File mito_contig_ids
     String output_prefix
 
-    String docker = "quay.io/biocontainers/seqkit:2.8.2--h9ee0642_0"
+    String docker = "quay.io/biocontainers/seqkit:2.13.0--he881be0_0"
     Int cpu = 2
     Int memory_gb = 4
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20
