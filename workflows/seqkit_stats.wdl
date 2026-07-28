@@ -1,25 +1,8 @@
 version 1.0
 
-## Workflow that computes FASTQ read statistics using SeqKit (seqkit stats).
+## Task that computes FASTQ read statistics using SeqKit (seqkit stats).
 
-workflow SeqkitStats {
-  input {
-    String sample_name
-    File fastq
-  }
-
-  call SeqkitStatsTask {
-    input:
-      fastq = fastq,
-      output_prefix = sample_name
-  }
-
-  output {
-    File stats = SeqkitStatsTask.stats
-  }
-}
-
-task SeqkitStatsTask {
+task SeqkitStats {
   input {
     File fastq
     String output_prefix

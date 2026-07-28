@@ -42,10 +42,13 @@ workflow HifiAssembly {
       unaligned_bam = unaligned_bam
   }
 
+  # Each SeqkitStats call needs its own output_prefix: they all write
+  # "<output_prefix>.seqkit_stats.tsv", so sharing sample_name would make the three
+  # stats files indistinguishable once collected into a flat output directory.
   call seqkit_wf.SeqkitStats as ComputeRawReadStats {
     input:
-      sample_name = sample_name,
-      fastq = ConvertBamToFastq.fastq
+      fastq = ConvertBamToFastq.fastq,
+      output_prefix = sample_name + ".raw"
   }
 
   call cutadapt_wf.CutadaptTask as TrimAdapters {
@@ -56,8 +59,8 @@ workflow HifiAssembly {
 
   call seqkit_wf.SeqkitStats as ComputeReadStats {
     input:
-      sample_name = sample_name,
-      fastq = TrimAdapters.trimmed_fastq
+      fastq = TrimAdapters.trimmed_fastq,
+      output_prefix = sample_name + ".trimmed"
   }
 
   call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
@@ -68,8 +71,8 @@ workflow HifiAssembly {
   if (defined(ont_ul_fastq)) {
     call seqkit_wf.SeqkitStats as ComputeOntUlReadStats {
       input:
-        sample_name = sample_name,
-        fastq = select_first([ont_ul_fastq])
+        fastq = select_first([ont_ul_fastq]),
+        output_prefix = sample_name + ".ont_ul"
     }
   }
 
