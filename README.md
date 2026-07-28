@@ -47,7 +47,7 @@ explain each one. Three are worth calling out:
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.
   the human rCRS (`NC_012920.1`); see
-  [docs/mitochondrial-removal.md](docs/mitochondrial-removal.md) for how to fetch it.
+  [docs/mitochondrial.md](docs/mitochondrial.md) for how to fetch it.
   These are supplied explicitly instead of being downloaded during the run.
 
 ## Outputs
@@ -97,7 +97,7 @@ cost a multi-day nuclear assembly. The status distinguishes the cases:
 The `hap1`/`hap2` labels refer to hifiasm's haplotypes, since removal happens before
 chrX/chrY partitioning. Removal is whole-contig, and contigs are kept in several
 circumstances by design — see
-[docs/mitochondrial-removal.md](docs/mitochondrial-removal.md), which the summary TSVs are
+[docs/mitochondrial.md](docs/mitochondrial.md), which the summary TSVs are
 there to make auditable.
 
 ### Reads and logs
@@ -117,8 +117,8 @@ assembly needs revisiting.
 
 ## Further documentation
 
-* [docs/mitochondrial-removal.md](docs/mitochondrial-removal.md) — what mitochondrial
-  removal does and does not remove, and why
+* [docs/mitochondrial.md](docs/mitochondrial.md) — how to fetch the
+  mitochondrial reference, and what removal does and does not remove
 * [docs/container-images.md](docs/container-images.md) — how images are pinned, built and
   published
 * [docs/validation.md](docs/validation.md) — what is checked, locally and in CI
