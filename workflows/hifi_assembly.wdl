@@ -61,7 +61,7 @@ workflow HifiAssembly {
     ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
     estimate_hom_cov: "Derive hifiasm's --hom-cov from the trimmed read statistics instead of letting hifiasm infer it. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
-    genome_size: "Genome size the above estimate divides the total base count by, in bp. Ignored unless estimate_hom_cov is set."
+    genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless estimate_hom_cov is set."
     min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless estimate_hom_cov is set."
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository. Supplied explicitly rather than downloaded."
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
@@ -92,9 +92,10 @@ workflow HifiAssembly {
     # EstimateHomCoverage requires them and this workflow forwards them, so these are the
     # only declarations of their defaults.
     #
-    # Genome size to divide the total base count by; the approximate size of the human
-    # genome (~3.1 Gbp).
-    Int genome_size = 3100000000
+    # Genome size to divide the total base count by, in Mb; the approximate size of the
+    # human genome (~3.1 Gbp = 3100 Mb). In Mb rather than bp so the literal stays well
+    # within what Cromwell's expression parser accepts (a bare 3100000000 fails to parse).
+    Int genome_size_mb = 3100
     # Lowest coverage the estimate may report before failing the run. Reaching it means the
     # reads do not cover the genome even once, which is a broken input rather than a number
     # worth passing to hifiasm. Set to 0 to accept anything.
@@ -158,7 +159,7 @@ workflow HifiAssembly {
     call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
       input:
         seqkit_stats = ComputeReadStats.stats,
-        genome_size = genome_size,
+        genome_size_mb = genome_size_mb,
         min_hom_cov = min_hom_cov
     }
   }
