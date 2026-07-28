@@ -36,10 +36,11 @@ worth calling out:
   outright rather than silently treated as female.
 * **`estimate_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
-  statistics and the genome size instead. Leave it off unless hifiasm's own inference is
+  statistics and `genome_size` instead. Leave it off unless hifiasm's own inference is
   known to be wrong for the sample: `--hom-cov` governs how aggressively duplicate
   haplotigs are purged, and total bases divided by genome size is a cruder estimate than
-  the histogram peak hifiasm finds.
+  the histogram peak hifiasm finds. `genome_size` defaults to ~3.1 Gbp and is ignored
+  while `estimate_hom_cov` is off.
 * **`chrY_no_par_yak` / `chrX_no_par_yak` / `par_yak`** — the pretrained k-mer databases
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.

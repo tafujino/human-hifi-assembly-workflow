@@ -43,6 +43,10 @@ workflow HifiAssembly {
     # haplotigs are purged, so overriding it with a cruder estimate makes the assembly
     # worse. Turn it on when hifiasm's inference is known to be wrong for the sample.
     Boolean estimate_hom_cov = false
+    # Genome size the above estimate divides the total base count by; ignored unless
+    # estimate_hom_cov is set. Defaults to the approximate size of the human genome
+    # (~3.1 Gbp), matching the default in estimate_hom_coverage.wdl.
+    Int genome_size = 3100000000
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
@@ -80,7 +84,8 @@ workflow HifiAssembly {
   if (estimate_hom_cov) {
     call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
       input:
-        seqkit_stats = ComputeReadStats.stats
+        seqkit_stats = ComputeReadStats.stats,
+        genome_size = genome_size
     }
   }
 

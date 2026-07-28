@@ -18,7 +18,9 @@ task EstimateHomCoverage {
     File seqkit_stats
 
     # Approximate size of the human genome (~3.1 Gbp). An input rather than a constant so
-    # that a different genome does not require editing this task.
+    # that a different genome does not require editing this task. HifiAssembly forwards its
+    # own genome_size here, so that is the value that takes effect in a full pipeline run
+    # and this default only applies when the task is called directly.
     Int genome_size = 3100000000
 
     # Refuse to report a coverage below this. Reaching it means the reads do not cover the
