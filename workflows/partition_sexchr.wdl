@@ -18,8 +18,8 @@ version 1.0
 
 task YakSexchrPartition {
   input {
-    File hap1_fasta
-    File hap2_fasta
+    File hap1_fasta_gz
+    File hap2_fasta_gz
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
@@ -28,13 +28,13 @@ task YakSexchrPartition {
     # yak sexchr options. -K: chunk size (e.g. "2g"), -t: number of threads.
     String chunk_size = "2g"
 
-    # Image built from docker/yak/Dockerfile, containing yak itself and groupxy.pl.
-    # Either build and push it to your own container registry and update this
-    # default value, or override the docker input from the caller.
-    String docker = "yak-groupxy:0.1"
+    # Image built from docker/yak/Dockerfile (containing yak itself and groupxy.pl),
+    # published by .github/workflows/build-docker-images.yml. Override the docker
+    # input from the caller if you publish it to your own registry instead.
+    String docker = "ghcr.io/tafujino/yak:0.1"
     Int cpu = 16
     Int memory_gb = 32
-    Int disk_gb = 2 * ceil(size(hap1_fasta, "GB") + size(hap2_fasta, "GB") + size(chrY_no_par_yak, "GB") + size(chrX_no_par_yak, "GB") + size(par_yak, "GB")) + 20
+    Int disk_gb = 2 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB") + size(chrY_no_par_yak, "GB") + size(chrX_no_par_yak, "GB") + size(par_yak, "GB")) + 20
   }
 
   # From the yak sexchr output (haplotype/chrX/chrY/PAR counts per contig), use
@@ -49,8 +49,8 @@ task YakSexchrPartition {
       ~{chrY_no_par_yak} \
       ~{chrX_no_par_yak} \
       ~{par_yak} \
-      ~{hap1_fasta} \
-      ~{hap2_fasta} \
+      ~{hap1_fasta_gz} \
+      ~{hap2_fasta_gz} \
       > ~{output_prefix}.sexchr_cnt.txt
 
     groupxy.pl \
@@ -78,8 +78,8 @@ task YakSexchrPartition {
 
 task ExtractPartitionedHaplotypeFasta {
   input {
-    File hap1_fasta
-    File hap2_fasta
+    File hap1_fasta_gz
+    File hap2_fasta_gz
     File hap1_contig_ids
     File hap2_contig_ids
     String output_prefix
@@ -87,16 +87,16 @@ task ExtractPartitionedHaplotypeFasta {
     String docker = "quay.io/biocontainers/seqtk:1.5--h577a1d6_1"
     Int cpu = 2
     Int memory_gb = 4
-    Int disk_gb = 4 * ceil(size(hap1_fasta, "GB") + size(hap2_fasta, "GB")) + 20
+    Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20
   }
 
   command <<<
     set -euo pipefail
 
-    cat ~{hap1_fasta} ~{hap2_fasta} > combined.fa
+    cat ~{hap1_fasta_gz} ~{hap2_fasta_gz} > combined.fa.gz
 
-    seqtk subseq -l80 combined.fa ~{hap1_contig_ids} | gzip -c > ~{output_prefix}.hap1.groupxy.fasta.gz
-    seqtk subseq -l80 combined.fa ~{hap2_contig_ids} | gzip -c > ~{output_prefix}.hap2.groupxy.fasta.gz
+    seqtk subseq -l80 combined.fa.gz ~{hap1_contig_ids} | gzip -c > ~{output_prefix}.hap1.groupxy.fasta.gz
+    seqtk subseq -l80 combined.fa.gz ~{hap2_contig_ids} | gzip -c > ~{output_prefix}.hap2.groupxy.fasta.gz
   >>>
 
   output {
