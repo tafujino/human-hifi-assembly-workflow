@@ -43,10 +43,17 @@ workflow HifiAssembly {
     # haplotigs are purged, so overriding it with a cruder estimate makes the assembly
     # worse. Turn it on when hifiasm's inference is known to be wrong for the sample.
     Boolean estimate_hom_cov = false
-    # Genome size the above estimate divides the total base count by; ignored unless
-    # estimate_hom_cov is set. Defaults to the approximate size of the human genome
-    # (~3.1 Gbp), matching the default in estimate_hom_coverage.wdl.
+    # The two knobs of that estimate, both ignored unless estimate_hom_cov is set.
+    # EstimateHomCoverage requires them and this workflow forwards them, so these are the
+    # only declarations of their defaults.
+    #
+    # Genome size to divide the total base count by; the approximate size of the human
+    # genome (~3.1 Gbp).
     Int genome_size = 3100000000
+    # Lowest coverage the estimate may report before failing the run. Reaching it means the
+    # reads do not cover the genome even once, which is a broken input rather than a number
+    # worth passing to hifiasm. Set to 0 to accept anything.
+    Int min_hom_cov = 1
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
@@ -85,7 +92,8 @@ workflow HifiAssembly {
     call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
       input:
         seqkit_stats = ComputeReadStats.stats,
-        genome_size = genome_size
+        genome_size = genome_size,
+        min_hom_cov = min_hom_cov
     }
   }
 

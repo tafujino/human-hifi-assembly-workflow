@@ -17,16 +17,19 @@ task EstimateHomCoverage {
   input {
     File seqkit_stats
 
-    # Approximate size of the human genome (~3.1 Gbp). An input rather than a constant so
-    # that a different genome does not require editing this task. HifiAssembly forwards its
-    # own genome_size here, so that is the value that takes effect in a full pipeline run
-    # and this default only applies when the task is called directly.
-    Int genome_size = 3100000000
+    # Both of the following are required rather than defaulted, so that each value lives in
+    # exactly one place: HifiAssembly declares the defaults and forwards them. It also
+    # follows the convention this repository already uses for the yak k-mer databases and
+    # the mitogenome reference, where an input that depends on the organism is supplied by
+    # the caller instead of being silently assumed.
+
+    # Genome size to divide the total base count by.
+    Int genome_size
 
     # Refuse to report a coverage below this. Reaching it means the reads do not cover the
     # genome even once, which no HiFi assembly can use, so it is a broken input rather than
     # a number worth passing on. Set to 0 to accept anything.
-    Int min_hom_cov = 1
+    Int min_hom_cov
 
     String docker = "ubuntu:24.04"
     Int cpu = 1
