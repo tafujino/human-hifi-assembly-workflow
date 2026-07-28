@@ -219,6 +219,10 @@ workflow HifiAssembly {
 
     File hifiasm_log = HifiasmAssembly.hifiasm_log
 
+    # mitohifi.py's log, which is where the mapped and filtered read counts are; see
+    # mitohifi_assembly.wdl on why those two numbers matter.
+    File mitohifi_log = AssembleMito.mitohifi_log
+
     # "success" / "partial" / "failed"; see MitoHiFiAssembly's output block for what each
     # one means for the three files below.
     String mito_assembly_status = AssembleMito.status

@@ -118,6 +118,13 @@ cost a multi-day nuclear assembly. The status distinguishes the cases:
   reference was used as the BLAST subject for contig removal instead of the sample's own
   mitogenome.
 
+`mitohifi_log` is where to look when the status is not `success`. `mitohifi.py` reduces the
+read set twice before assembling: it maps every read to the reference, then discards the
+mapped reads *longer* than the reference (16,569 bp against the rCRS) as likely NUMT
+carriers. That threshold falls inside the length distribution of HiFi reads rather than
+above it, so a substantial share of mapped reads is normally discarded, and on a run with
+long reads the survivors can be too few to assemble. The log reports both counts.
+
 ### Mitochondrial contig removal
 
 | Output | File | Contents |
@@ -146,6 +153,7 @@ there to make auditable.
 | `read_stats` | `<sample>.trimmed.seqkit_stats.tsv` | The same after trimming |
 | `ont_ul_read_stats` | `<sample>.ont_ul.seqkit_stats.tsv` | The same for the ultra-long reads; absent unless `ont_ul_fastq` was given |
 | `hifiasm_log` | `<sample>.hifiasm.log` | hifiasm's stderr, which records the homozygous coverage it inferred and how aggressively it purged |
+| `mitohifi_log` | `<sample>.mitohifi.log` | `mitohifi.py`'s log. Read this first when `mito_assembly_status` is not `success`: it reports how many reads mapped to the reference and how many survived the length filter |
 
 hifiasm's assembly graphs are deliberately not delivered; re-run the workflow if an
 assembly needs revisiting.

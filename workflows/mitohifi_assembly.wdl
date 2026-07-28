@@ -35,6 +35,20 @@ version 1.0
 ## produces its outputs, empty when nothing was assembled. Deciding what to do with an
 ## empty mitogenome is left to the consumer; mito_contig_removal.wdl falls back to
 ## related_mito_fasta as its BLAST subject in that case.
+##
+##
+## The read filter, and why the log is delivered
+## -------------------------------------------
+## "-r" mode reduces the read set in two steps before assembling anything. It maps every
+## read to the related mitogenome, then discards the mapped reads that are *longer* than
+## --max-read-len times that mitogenome's length -- a default of 1.0, so 16,569 bp against
+## the rCRS -- on the grounds that a read longer than the mitogenome is more likely to carry
+## a NUMT than to be mtDNA. That threshold sits inside the length distribution of HiFi reads
+## rather than above it, so a substantial share of the mapped reads is normally discarded,
+## and on a run whose read lengths are on the high side the survivors can be too few to
+## assemble. mitohifi.py reports both counts, and they are the first thing to look at when
+## mito_assembly_status is not "success" -- which is why the log is kept as an output
+## instead of being left wherever the backend puts stdout.
 
 task MitoHiFiAssembly {
   meta {
@@ -78,17 +92,29 @@ task MitoHiFiAssembly {
 
     # A non-zero exit is recorded rather than propagated; see the header comment in this
     # file for why the nuclear assembly must survive a failed mitogenome assembly.
+    #
+    # mitohifi.py logs to stdout, and that log is the only quantitative account of what the
+    # run did, so it is captured as an output rather than left in whatever the backend does
+    # with stdout. stderr is merged into it so that a subprocess failure is recorded next to
+    # the step that provoked it; this task's own messages are written after the redirect and
+    # so stay on the task's stderr.
     status=success
     if ! mitohifi.py \
       -r ~{hifi_fastq} \
       -f ~{related_mito_fasta} \
       -g ~{related_mito_gb} \
       -t ~{cpu} \
-      -o ~{genetic_code}
+      -o ~{genetic_code} \
+      > ~{output_prefix}.mitohifi.log 2>&1
     then
       status=partial
-      echo "[warn] mitohifi.py exited non-zero" >&2
+      echo "[warn] mitohifi.py exited non-zero; see ~{output_prefix}.mitohifi.log" >&2
     fi
+
+    # Repeated on stderr so that the two numbers worth knowing are visible without opening
+    # the file. See the note on the read filter at the top of this file for why they matter.
+    grep -E 'Total number of mapped reads|Number of filtered reads' \
+      ~{output_prefix}.mitohifi.log >&2 || true
 
     # The status is decided by what was actually produced, not by the exit code alone:
     # mitohifi.py writes final_mitogenome.fasta before its annotation-stats and plotting
@@ -129,6 +155,11 @@ task MitoHiFiAssembly {
     File mito_fasta_gz = "~{output_prefix}.mito.fasta.gz"
     File mito_gb = "~{output_prefix}.mito.gb"
     File contigs_stats = "~{output_prefix}.contigs_stats.tsv"
+
+    # mitohifi.py's own log, always produced. Carries the mapped and filtered read counts
+    # described at the top of this file, and whatever failed when the status is not
+    # "success".
+    File mitohifi_log = "~{output_prefix}.mitohifi.log"
   }
 
   runtime {
