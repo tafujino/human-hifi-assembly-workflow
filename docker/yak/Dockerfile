@@ -1,11 +1,11 @@
-# yak (https://github.com/lh3/yak) の実行ファイルと、
-# 同リポジトリに含まれる groupxy.pl (chrX/chrY パーティショニング用スクリプト) を
-# 含んだイメージ。bioconda の yak パッケージには groupxy.pl が含まれないため、
-# ソースからビルドして両方を取得する。
+# Image containing the yak (https://github.com/lh3/yak) executable and
+# groupxy.pl (the chrX/chrY partitioning script included in the same repository).
+# Since the bioconda yak package does not include groupxy.pl, both are obtained
+# by building from source.
 #
-# yak は sexchr サブコマンド/groupxy.pl 追加後にタグが打たれていない
-# (最新タグ v0.1 はそれらの追加より前の 2020 年時点のもの) ため、
-# 再現性のため特定のコミットを固定して取得する。
+# yak has not been tagged since the sexchr subcommand/groupxy.pl were added
+# (the latest tag, v0.1, predates those additions and is from 2020), so a
+# specific commit is pinned for reproducibility.
 FROM ubuntu:22.04
 
 ARG YAK_COMMIT=ef033d720e229593b32ad454af14ccea2120ec13
