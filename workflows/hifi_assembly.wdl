@@ -13,7 +13,7 @@ version 1.0
 ##      removes mitochondrial-derived contigs from the hifiasm hap1/hap2 contigs, using
 ##      mitohifi_assembly.wdl (MitoAssembly)
 ##   7. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
-##      assignment using partition_sexchr.wdl (YakSexchrPartition, ExtractPartitionedHaplotypeFasta)
+##      assignment using partition_sexchr.wdl (PartitionSexchr)
 
 import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
@@ -92,22 +92,13 @@ workflow HifiAssembly {
       output_prefix = sample_name
   }
 
-  call partition_sexchr_wf.YakSexchrPartition as PartitionSexChr {
+  call partition_sexchr_wf.PartitionSexchr as PartitionSexchr {
     input:
       hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
       hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
       chrX_no_par_yak = chrX_no_par_yak,
       par_yak = par_yak,
-      output_prefix = sample_name
-  }
-
-  call partition_sexchr_wf.ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
-    input:
-      hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
-      hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
-      hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
-      hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
       output_prefix = sample_name
   }
 
@@ -124,7 +115,7 @@ workflow HifiAssembly {
     File mito_contigs_stats = MitoAssembly.mito_contigs_stats
     File mito_contig_ids = MitoAssembly.mito_contig_ids
 
-    File hap1_contigs_fasta_gz = ExtractPartitionedFasta.new_hap1_fasta_gz
-    File hap2_contigs_fasta_gz = ExtractPartitionedFasta.new_hap2_fasta_gz
+    File hap1_contigs_fasta_gz = PartitionSexchr.new_hap1_fasta_gz
+    File hap2_contigs_fasta_gz = PartitionSexchr.new_hap2_fasta_gz
   }
 }

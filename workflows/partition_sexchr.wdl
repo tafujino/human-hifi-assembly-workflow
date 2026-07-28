@@ -15,6 +15,48 @@ version 1.0
 ##
 ## Since groupxy.pl is not included in the bioconda yak package, a custom Docker image
 ## (docker/yak/Dockerfile) built from source with both yak itself and groupxy.pl is used.
+##
+## PartitionSexchr bundles both tasks into a single sub-workflow, so callers only need
+## one `call` to get the final, sex-chromosome-partitioned hap1/hap2 FASTA.
+
+workflow PartitionSexchr {
+  input {
+    File hap1_fasta_gz
+    File hap2_fasta_gz
+    File chrY_no_par_yak
+    File chrX_no_par_yak
+    File par_yak
+    String output_prefix
+  }
+
+  call YakSexchrPartition as PartitionSexChr {
+    input:
+      hap1_fasta_gz = hap1_fasta_gz,
+      hap2_fasta_gz = hap2_fasta_gz,
+      chrY_no_par_yak = chrY_no_par_yak,
+      chrX_no_par_yak = chrX_no_par_yak,
+      par_yak = par_yak,
+      output_prefix = output_prefix
+  }
+
+  call ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
+    input:
+      hap1_fasta_gz = hap1_fasta_gz,
+      hap2_fasta_gz = hap2_fasta_gz,
+      hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
+      hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
+      output_prefix = output_prefix
+  }
+
+  output {
+    File sexchr_cnt = PartitionSexChr.sexchr_cnt
+    File sexchr_grouped = PartitionSexChr.sexchr_grouped
+    File hap1_contig_ids = PartitionSexChr.hap1_contig_ids
+    File hap2_contig_ids = PartitionSexChr.hap2_contig_ids
+    File new_hap1_fasta_gz = ExtractPartitionedFasta.new_hap1_fasta_gz
+    File new_hap2_fasta_gz = ExtractPartitionedFasta.new_hap2_fasta_gz
+  }
+}
 
 task YakSexchrPartition {
   input {
