@@ -28,6 +28,9 @@ version 1.0
 ##      male samples, so sample_sex must be given; for female samples the contigs are passed
 ##      through unchanged (see partition_sexchr.wdl for why). The is_male flag it takes comes
 ##      from step 0.
+##   9. puts the mitogenome from step 5 back into hap2 as a contig named chrM, using
+##      add_mito_to_assembly.wdl (AddMitoToHap2). Without this the delivered haplotypes
+##      contain no mtDNA at all; see that file for why hap2, and why after step 8.
 
 import "validate_inputs.wdl" as validate_inputs_wf
 import "bam2fastq.wdl" as bam2fastq_wf
@@ -38,6 +41,7 @@ import "hifiasm_assembly.wdl" as hifiasm_assembly_wf
 import "mitohifi_assembly.wdl" as mitohifi_assembly_wf
 import "mito_contig_removal.wdl" as mito_contig_removal_wf
 import "partition_sexchr.wdl" as partition_sexchr_wf
+import "add_mito_to_assembly.wdl" as add_mito_wf
 
 workflow HifiAssembly {
   meta {
@@ -56,6 +60,7 @@ workflow HifiAssembly {
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository. Supplied explicitly rather than downloaded."
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
     par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
+    add_mito_to_hap2: "Deliver the assembled mitogenome inside hap2 as a contig named chrM, as well as separately. On by default: without it the haplotypes contain no mtDNA, which also undermines the reason short mitochondrial fragments are kept. Turn it off only to obtain strictly mitochondria-free nuclear haplotypes."
     mito_reference_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS (NC_012920.1). Must be plain text."
     mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
   }
@@ -88,6 +93,12 @@ workflow HifiAssembly {
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
+    # Whether to put the assembled mitogenome back into hap2 as chrM. On by default: an
+    # assembly with no mtDNA at all is incomplete, and mito_contig_removal.wdl's reason for
+    # keeping short mitochondrial fragments -- that a leftover fragment is redundancy --
+    # only holds while the correct mitogenome is present. Turn it off only when strictly
+    # mitochondria-free nuclear haplotypes are what is wanted.
+    Boolean add_mito_to_hap2 = true
     File mito_reference_fasta
     File mito_reference_gb
   }
@@ -187,6 +198,16 @@ workflow HifiAssembly {
       output_prefix = sample_name
   }
 
+  # Last, so that hap2 is hap2 unconditionally: partitioning could otherwise move chrM to
+  # hap1. See add_mito_to_assembly.wdl.
+  if (add_mito_to_hap2) {
+    call add_mito_wf.AddMitoToHap2 as AddMitoToHap2 {
+      input:
+        hap2_fasta_gz = PartitionSexchr.new_hap2_fasta_gz,
+        mito_fasta_gz = AssembleMito.mito_fasta_gz
+    }
+  }
+
   output {
     File fastq = ConvertBamToFastq.fastq
     File raw_read_stats = ComputeRawReadStats.stats
@@ -210,7 +231,17 @@ workflow HifiAssembly {
     File hap2_mito_blast_summary = RemoveMito.hap2_mito_blast_summary
 
     File hap1_contigs_fasta_gz = PartitionSexchr.new_hap1_fasta_gz
-    File hap2_contigs_fasta_gz = PartitionSexchr.new_hap2_fasta_gz
+
+    # Carries chrM when one was assembled; the file name is the same either way, so the
+    # output below, not the name, is what records that.
+    File hap2_contigs_fasta_gz = select_first([
+      AddMitoToHap2.hap2_with_mito_fasta_gz,
+      PartitionSexchr.new_hap2_fasta_gz
+    ])
+
+    # Whether hap2 above ends in a chrM contig. Undefined when add_mito_to_hap2 was off,
+    # false when it was on but no mitogenome was assembled.
+    Boolean? chrM_in_hap2 = AddMitoToHap2.mito_added
 
     # groupxy.pl's per-contig assignment table: column 2 is the contig, column 3 the
     # haplotype hifiasm put it in, column 4 the haplotype it ended up in. Delivered because

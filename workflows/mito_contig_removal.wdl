@@ -59,10 +59,12 @@ version 1.0
 ##   * Fragmentary mitochondrial contigs are not removed. The length floor excludes any
 ##     contig shorter than 80% of the subject (~13.3 kb against the rCRS), however purely
 ##     mitochondrial it looks. Deleting real nuclear sequence is a worse error than leaving
-##     a redundant mitochondrial fragment behind, especially as the properly assembled
-##     mitogenome is delivered separately. Every contig with a BLAST hit is nevertheless
-##     listed in the per-haplotype summary TSV together with its coverage, so fragments
-##     remain visible even though they are kept.
+##     a redundant mitochondrial fragment behind. Note the word redundant: that argument
+##     depends on the assembly containing the properly assembled mitogenome, which is what
+##     add_mito_to_assembly.wdl puts into hap2 as chrM. With add_mito_to_hap2 turned off, a
+##     leftover fragment is instead the only mtDNA in the assembly. Every contig with a
+##     BLAST hit is nevertheless listed in the per-haplotype summary TSV together with its
+##     coverage, so fragments remain visible either way.
 ##
 ## And one known miss, which is a consequence of keeping the default compatible with HPP
 ## rather than a considered trade-off:

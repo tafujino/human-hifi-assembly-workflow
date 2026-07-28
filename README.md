@@ -24,6 +24,9 @@ phased, diploid de novo assembly.
    BLASTing them against the mitogenome from step 5
 8. **chrX/chrY partitioning** — `partition_sexchr.wdl`, yak `sexchr` plus `groupxy.pl`.
    Male samples only; see below
+9. **Mitogenome reinsertion** — `add_mito_to_assembly.wdl`, task `AddMitoToHap2`. Appends
+   the mitogenome from step 5 to hap2 as a contig named `chrM`. Last, because partitioning
+   would otherwise be free to move it to hap1
 
 Each `.wdl` file carries a header comment explaining its design decisions, including
 the ones that are not obvious. Start there rather than here.
@@ -32,13 +35,18 @@ the ones that are not obvious. Start there rather than here.
 
 `miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
-explain each one. Three are worth calling out:
+explain each one. Four are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
   sample it would force both X homologues into hap2. Any other value is rejected
   outright rather than silently treated as female, and the check runs at the very start of
   the workflow, so a typo costs a minute rather than an assembly.
+* **`add_mito_to_hap2`** — on by default, so the assembled mitogenome is delivered both on
+  its own and as a `chrM` contig at the end of hap2. Turning it off gives strictly
+  mitochondria-free nuclear haplotypes, at the cost of an assembly containing no mtDNA and
+  of the premise for keeping short mitochondrial fragments; see
+  [docs/mitochondrial.md](docs/mitochondrial.md).
 * **`estimate_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
   statistics and `genome_size` instead. Leave it off unless hifiasm's own inference is
@@ -63,13 +71,16 @@ explain each one. Three are worth calling out:
 | Output | File | Contents |
 | --- | --- | --- |
 | `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples, chrX/chrY-partitioned |
-| `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs |
+| `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs, ending in the assembled mitogenome as a contig named `chrM` |
+| `chrM_in_hap2` | — | Whether hap2 really ends in a `chrM`; absent if `add_mito_to_hap2` was off |
 | `sexchr_grouped` | `<sample>.sexchr_grouped.txt` | Which haplotype each contig came from and which it ended up in; male samples only |
 
 For a female sample the partitioning step is skipped, so these fall through to
 `<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`, and
 `sexchr_grouped` is absent. The file name therefore records whether partitioning was
-applied.
+applied — and, for that reason, does *not* change when `chrM` is appended to hap2, which is
+what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 carries no mtDNA;
+[docs/mitochondrial.md](docs/mitochondrial.md) explains why hap2 and why last.
 
 `sexchr_grouped` is `groupxy.pl`'s output, one row per contig. Three of its columns matter:
 column 2 is the contig, column 3 the haplotype hifiasm assigned it to, and column 4 the

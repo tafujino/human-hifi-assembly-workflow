@@ -39,7 +39,8 @@ Both are policy choices, not oversights, and both follow the Human Pangenome Pro
 * **Short mitochondrial fragments are not removed.** Anything shorter than 80% of the
   subject (~13.3 kb against the rCRS) is kept however purely mitochondrial it looks,
   because deleting real nuclear sequence is a worse error than leaving a redundant
-  fragment — especially as the assembled mitogenome is delivered separately.
+  fragment. That reasoning relies on the assembly having a correct mitogenome for the
+  fragment to be redundant *of* — see below.
 
 ### One known miss
 
@@ -51,6 +52,33 @@ contig as a long tandem concatemer.
 The ceiling exists as a proxy for excluding NUMTs, a job the coverage criterion now does
 directly and better, so for this workflow it mostly just loses recall. It is kept at HPP's
 value for comparability; raise `max_subject_multiple` if you would rather remove these.
+
+### The mitogenome goes back in as chrM
+
+Removal takes the mitochondrial contigs out of both haplotypes, and
+`add_mito_to_assembly.wdl` then appends the assembled mitogenome to **hap2** as a contig
+named `chrM`. The Human Pangenome Project's `assembly_cleanup.wdl` does the same, also into
+hap2 alone, so hap1 carries no mtDNA at all.
+
+This is what makes the two omissions above safe to make: a leftover fragment is redundant
+because the correct mitogenome is present. It also matters on its own — an assembly with no
+mtDNA is incomplete.
+
+It happens last, after chrX/chrY partitioning, because `yak sexchr` judges a contig by its
+sex-chromosome k-mer content and `chrM` has none: added earlier, `chrM` would be swept along
+with the autosomes and could end up in hap1 on some samples and hap2 on others.
+
+Two things follow:
+
+* `hap2_contigs_fasta_gz` keeps the same file name whether or not a `chrM` was added, so
+  the `chrM_in_hap2` output is what records it: `true` if a `chrM` is present, `false` if
+  the mitogenome assembly produced nothing, and absent if `add_mito_to_hap2` was off.
+* A `mito_assembly_status` of `partial` still yields a usable sequence, so it is added;
+  only `failed` leaves hap2 without a `chrM`.
+
+Set `add_mito_to_hap2` to `false` to get strictly mitochondria-free nuclear haplotypes.
+Doing so also removes the premise for keeping short fragments, which then become the only
+mitochondrial sequence in the haplotypes.
 
 ### Removal is whole-contig
 
