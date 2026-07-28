@@ -9,6 +9,11 @@
 # matches a specific MitoHiFi release tag. Only the MitoHiFi source itself
 # (pinned to a specific git tag) is added on top, mirroring what upstream's own
 # environment/code/Dockerfile does for its ":master" image.
+#
+# The sed calls below modify GPL-3.0-or-later files, and this image is published, so
+# GPL-3 section 5(a) requires the modifications to be stated. They are recorded in the
+# NOTICE file in this directory, which is copied into the image. Keep NOTICE in step
+# with any change to the RUN block.
 FROM ghcr.io/marcelauliano/mitohifi-base:b3.2.3
 
 ARG MITOHIFI_TAG=v3.2.3
@@ -20,6 +25,8 @@ RUN git clone --branch "${MITOHIFI_TAG}" --depth 1 https://github.com/marcelauli
     && sed -i '1 s/python\>/python3/' *.py \
     && sed -i 's/"python2",\s//' parallel_annotation_mitos.py \
     && sed -i 's/MITOS\/data/\/opt\/databases/' parallel_annotation_mitos.py
+
+COPY NOTICE /opt/MitoHiFi/NOTICE.modifications
 
 ENV PATH=/opt/wrappers:/opt/cdhit/:/opt/hifiasm-0.16.1/:/opt/MitoHiFi/src/:/opt/MitoFinder/:/opt/minimap2-2.24_x64-linux/:${PATH}
 

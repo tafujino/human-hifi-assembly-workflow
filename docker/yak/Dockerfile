@@ -6,6 +6,10 @@
 # yak has not been tagged since the sexchr subcommand/groupxy.pl were added
 # (the latest tag, v0.1, predates those additions and is from 2020), so a
 # specific commit is pinned for reproducibility.
+#
+# yak is MIT-licensed (Copyright (c) 2019- Dana-Farber Cancer Institute). Since this
+# image is published, its licence text is kept under /usr/local/share/licenses/yak/
+# rather than being discarded together with the build tree.
 FROM ubuntu:22.04
 
 ARG YAK_COMMIT=ef033d720e229593b32ad454af14ccea2120ec13
@@ -22,6 +26,7 @@ RUN git clone https://github.com/lh3/yak.git /opt/yak \
     && make -C /opt/yak \
     && install -m 0755 /opt/yak/yak /usr/local/bin/yak \
     && install -m 0755 /opt/yak/groupxy.pl /usr/local/bin/groupxy.pl \
+    && install -D -m 0644 /opt/yak/LICENSE.txt /usr/local/share/licenses/yak/LICENSE.txt \
     && rm -rf /opt/yak
 
 WORKDIR /data

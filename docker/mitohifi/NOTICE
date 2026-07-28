@@ -1,0 +1,50 @@
+NOTICE for ghcr.io/<owner>/mitohifi
+===================================
+
+This image redistributes third-party software. It is built and published by
+.github/workflows/build-docker-images.yml from the Dockerfile in this directory.
+
+Modifications made to MitoHiFi (GPL-3.0-or-later, GPL-3 section 5(a) notice)
+---------------------------------------------------------------------------
+MitoHiFi is obtained by `git clone` of the v3.2.3 tag from
+https://github.com/marcelauliano/MitoHiFi into /opt/MitoHiFi.
+
+The following changes were made to the cloned sources on 2026-07-28, so that the
+scripts run under python3 and find the MITOS databases at the path the base image
+provides. No functional change to any analysis was made.
+
+  * src/mitohifi.py, src/findFrameShifts.py, src/fixContigHeaders.py
+      a `#!/usr/bin/env python3` shebang line was inserted
+
+  * src/*.py
+      an existing `python` shebang on line 1 was rewritten to `python3`.
+      This applies to, among others, the three files that carry their own
+      GPL-3.0-or-later headers:
+        src/parse_blast.py        (Copyright 2020 Marcela Uliano-Silva)
+        src/filterfasta.py        (Copyright 2014-2019 Felix Heeger)
+        src/findMitoReference.py  (Copyright 2022 Ksenia Krasheninnikova)
+
+  * src/parallel_annotation_mitos.py
+      the `"python2",` argument was removed from a subprocess invocation, and the
+      MITOS data path `MITOS/data` was rewritten to `/opt/databases`
+
+The complete corresponding source of the modified MitoHiFi is present inside the
+image at /opt/MitoHiFi (it is interpreted Python; nothing is compiled), and the
+unmodified upstream is available at the URL and tag above.
+
+Licensing of MitoHiFi
+---------------------
+MitoHiFi's repository-level LICENSE file states MIT (Copyright Genome Research Ltd.),
+while three of its source files carry GPL-3.0-or-later headers naming three different
+copyright holders, as listed above. Those headers were added before, and survived, the
+addition of the repository-level MIT LICENSE in April 2021, so this contradiction
+appears to be unresolved upstream rather than an intentional relicensing. This project
+takes the conservative reading and honours the per-file GPL-3.0-or-later notices, which
+is also what the Human Pangenome Project did when it reused parse_blast.py.
+
+Other software in this image
+---------------------------
+The base image ghcr.io/marcelauliano/mitohifi-base:b3.2.3 is used unmodified and
+bundles further third-party software, including MitoFinder (GPL-3.0-or-later),
+cd-hit (GPL-2.0), hifiasm (MIT) and minimap2 (MIT), each retaining its own notices
+inside the image. Refer to the upstream base image for their corresponding sources.
