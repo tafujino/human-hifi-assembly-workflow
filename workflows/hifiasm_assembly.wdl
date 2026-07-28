@@ -1,7 +1,7 @@
 version 1.0
 
-## hifiasm を用いてゲノムアセンブリを行うタスク。
-## Oxford Nanopore ultra-long read が与えられた場合は --ul オプションで併用する。
+## Task that performs genome assembly using hifiasm.
+## If an Oxford Nanopore ultra-long read is given, it is used together via the --ul option.
 
 task HifiasmAssembly {
   input {
@@ -25,14 +25,14 @@ task HifiasmAssembly {
       ~{"--ul-cut " + ul_cut} \
       ~{fastq}
 
-    # hifiasm は GFA のみを出力するため、hap1/hap2 contig の FASTA を抽出する
-    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap1.p_ctg.gfa > ~{output_prefix}.bp.hap1.p_ctg.fasta
-    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap2.p_ctg.gfa > ~{output_prefix}.bp.hap2.p_ctg.fasta
+    # hifiasm only outputs GFA, so extract the hap1/hap2 contig FASTA from it
+    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap1.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap1.p_ctg.fasta.gz
+    awk '/^S/{print ">"$2; print $3}' ~{output_prefix}.bp.hap2.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap2.p_ctg.fasta.gz
   >>>
 
   output {
-    File hap1_contigs_fasta = "~{output_prefix}.bp.hap1.p_ctg.fasta"
-    File hap2_contigs_fasta = "~{output_prefix}.bp.hap2.p_ctg.fasta"
+    File hap1_contigs_fasta_gz = "~{output_prefix}.bp.hap1.p_ctg.fasta.gz"
+    File hap2_contigs_fasta_gz = "~{output_prefix}.bp.hap2.p_ctg.fasta.gz"
   }
 
   runtime {

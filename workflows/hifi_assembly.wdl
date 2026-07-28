@@ -1,16 +1,16 @@
 version 1.0
 
-## PacBio unaligned BAM を入力とし、
-##   1. bam2fastq.wdl (BamToFastq) で FASTQ に変換
-##   2. seqkit_stats.wdl (SeqkitStats) で cutadapt 適用前のリード統計を計算
-##   3. cutadapt_trim.wdl (CutadaptTask) でアダプター/C2 プライマーを除去
-##   4. seqkit_stats.wdl (SeqkitStats) でトリム後のリード統計を計算し、ヒトゲノムサイズから
-##      推定カバレッジ (--hom-cov) を算出
-##   5. hifiasm でゲノムアセンブリ(Oxford Nanopore ultra-long read が与えられた場合は
-##      --ul オプションで併用し、seqkit_stats.wdl (SeqkitStats) でその統計も計算する)
-##   6. partition_sexchr.wdl (YakSexchrPartition, ExtractPartitionedHaplotypeFasta) で
-##      hifiasm の hap1/hap2 contig を chrX/chrY の帰属に基づいて振り分け直す
-## を行うエンドツーエンドのワークフロー。
+## End-to-end workflow that takes a PacBio unaligned BAM as input and:
+##   1. converts it to FASTQ with bam2fastq.wdl (BamToFastq)
+##   2. computes read statistics before applying cutadapt with seqkit_stats.wdl (SeqkitStats)
+##   3. removes adapter/C2 primer sequences with cutadapt_trim.wdl (CutadaptTask)
+##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and
+##      computes the estimated coverage (--hom-cov) from the human genome size
+##   5. performs genome assembly with hifiasm (using the --ul option together with an
+##      Oxford Nanopore ultra-long read if given, and computing its statistics with
+##      seqkit_stats.wdl (SeqkitStats))
+##   6. reassigns the hifiasm hap1/hap2 contigs based on their chrX/chrY assignment using
+##      partition_sexchr.wdl (YakSexchrPartition, ExtractPartitionedHaplotypeFasta)
 
 import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
@@ -78,8 +78,8 @@ workflow HifiAssembly {
 
   call partition_sexchr_wf.YakSexchrPartition as PartitionSexChr {
     input:
-      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta,
-      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta,
+      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta_gz,
+      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
       chrX_no_par_yak = chrX_no_par_yak,
       par_yak = par_yak,
@@ -88,8 +88,8 @@ workflow HifiAssembly {
 
   call partition_sexchr_wf.ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
     input:
-      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta,
-      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta,
+      hap1_fasta = HifiasmAssembly.hap1_contigs_fasta_gz,
+      hap2_fasta = HifiasmAssembly.hap2_contigs_fasta_gz,
       hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
       hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
       output_prefix = sample_name
@@ -103,7 +103,7 @@ workflow HifiAssembly {
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
-    File hap1_contigs_fasta = ExtractPartitionedFasta.new_hap1_fasta
-    File hap2_contigs_fasta = ExtractPartitionedFasta.new_hap2_fasta
+    File hap1_contigs_fasta_gz = ExtractPartitionedFasta.new_hap1_fasta_gz
+    File hap2_contigs_fasta_gz = ExtractPartitionedFasta.new_hap2_fasta_gz
   }
 }
