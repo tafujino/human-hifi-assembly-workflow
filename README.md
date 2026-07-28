@@ -27,8 +27,9 @@ the ones that are not obvious. Start there rather than here.
 
 ## Inputs
 
-`miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs. Two are
-worth calling out:
+`miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
+workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
+explain each one. Three are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
@@ -48,79 +49,78 @@ worth calling out:
   the human rCRS (`NC_012920.1`). These are supplied explicitly instead of being
   downloaded during the run.
 
-## What mitochondrial removal does and does not remove
+## Outputs
 
-Two omissions are policy choices, not oversights, and both follow the Human Pangenome
-Project's `findMitoContigs.wdl`:
+`<sample>` below is the `sample_name` input, which prefixes every file.
 
-* **NUMTs are not removed.** mtDNA embedded in a large nuclear contig is genuine
-  nuclear sequence.
-* **Short mitochondrial fragments are not removed.** Anything shorter than 80% of the
-  reference (~13.3 kb against the rCRS) is kept however purely mitochondrial it looks,
-  because deleting real nuclear sequence is a worse error than leaving a redundant
-  fragment — especially as the assembled mitogenome is delivered separately.
+### The assembly
 
-There is also one **known miss**: a contig that is entirely mitochondrial but longer than
-`max_subject_multiple` times the reference (~165.7 kb against the rCRS) is kept, because
-the length ceiling is applied irrespective of coverage. Since mtDNA sits at extreme
-coverage, hifiasm can emit such a contig as a long tandem concatemer. The default is left
-at HPP's value for comparability; raise `max_subject_multiple` if you would rather remove
-these.
-
-Every contig with a BLAST hit is listed in the per-haplotype `*_mito_blast_summary` TSV
-with its length and coverage, so anything kept is still visible in the outputs. All three
-thresholds are workflow inputs. See `workflows/mitohifi_assembly.wdl` for the details.
-
-## Container images
-
-Every task pins an image. Third-party images are pinned **by digest**, with the readable
-tag kept in a comment above each one, so that a rebuilt or retagged upstream image cannot
-change what a run executes. The images built here are pinned by tag instead, since a digest
-does not exist until CI has published it; `docker/<name>/VERSION` is the tag, and bumping it
-is how a change to a Dockerfile is published without overwriting what is already out there.
-
-The three images that need building live under `docker/`:
-
-| Directory | Image | Contents |
+| Output | File | Contents |
 | --- | --- | --- |
-| `docker/mitohifi/` | `mitohifi` | MitoHiFi v3.2.3 on the upstream `mitohifi-base` image |
-| `docker/yak/` | `yak` | yak plus `groupxy.pl`, built from a pinned commit |
-| `docker/mito-blast-filter/` | `mito-blast-filter` | the BLAST biocontainer plus `mito_blast_filter` |
+| `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples, chrX/chrY-partitioned |
+| `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs |
 
-```sh
-docker/build_and_push.sh                        # build all
-docker/build_and_push.sh --push yak             # build and publish one
-docker/build_and_push.sh --push --dry-run       # report what would be published
-```
+For a female sample the partitioning step is skipped, so these fall through to
+`<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`. The file name
+therefore records whether partitioning was applied.
 
-`REGISTRY` defaults to `ghcr.io/tafujino`; override it to publish under a different
-namespace. `.github/workflows/build-docker-images.yml` builds and publishes on pushes
-that touch `docker/`. Where an image ships a script of ours, `build_and_push.sh` runs
-its `test.sh` before pushing.
+### The mitogenome
 
-Two rules keep a pinned tag meaningful, since the WDL pins these tags by name:
+| Output | File | Contents |
+| --- | --- | --- |
+| `mito_assembly_status` | — | `success`, `partial` or `failed`; see below |
+| `mito_fasta_gz` | `<sample>.mito.fasta.gz` | Assembled mitogenome |
+| `mito_gb` | `<sample>.mito.gb` | Its annotation, from MitoFinder |
+| `mito_contigs_stats` | `<sample>.contigs_stats.tsv` | MitoHiFi's per-candidate statistics |
 
-* **A version tag already in the registry is never overwritten.** Bump
-  `docker/<name>/VERSION` to publish a changed image; otherwise the push is skipped with
-  a warning. There is deliberately no override flag.
-* **`:latest` only moves on `main`**, and only when the version tag was actually
-  published in the same run, so it always names content that a version tag also names.
+A failed mitogenome assembly does not abort the run, because `mitohifi.py` can fail in its
+annotation or plotting steps after producing a perfectly usable sequence, and that must not
+cost a multi-day nuclear assembly. The status distinguishes the cases:
 
-`docker/check_images.sh` verifies that every image pinned in `workflows/*.wdl` actually
-resolves in its registry — tags and digests alike — and that the tags of locally built
-images agree with their `docker/<name>/VERSION`. It needs only `curl`, not a Docker daemon.
-`docker/check_images.sh --list` prints the pinned images, which is how `docker/images.txt`
-is generated.
+* `success` — `mitohifi.py` exited cleanly and produced a mitogenome.
+* `partial` — a mitogenome was produced but `mitohifi.py` still exited non-zero.
+  `mito_fasta_gz` is usable; `mito_gb` and `mito_contigs_stats` may be empty.
+* `failed` — no mitogenome was produced. All three files above are empty, and the supplied
+  reference was used as the BLAST subject for contig removal instead of the sample's own
+  mitogenome.
 
-## Validation
+### Mitochondrial contig removal
 
-```sh
-miniwdl check workflows/*.wdl                       # syntax, types, imports
-docker/check_images.sh                              # pinned images resolve
-docker/mito-blast-filter/test.sh <image>            # filter test suite
-```
+| Output | File | Contents |
+| --- | --- | --- |
+| `hap1_mito_contig_ids` | `<sample>.hap1.mito_contig_ids.txt` | IDs removed from hifiasm's hap1; exactly the contigs absent from the final assembly |
+| `hap2_mito_contig_ids` | `<sample>.hap2.mito_contig_ids.txt` | The same for hap2 |
+| `hap1_mito_blast_summary` | `<sample>.hap1.mito_blast_summary.tsv` | Every hap1 contig with a BLAST hit, with its length, covered bases, coverage percentage and whether it was removed |
+| `hap2_mito_blast_summary` | `<sample>.hap2.mito_blast_summary.tsv` | The same for hap2 |
 
-`.github/workflows/validate-wdl.yml` runs the first two in CI.
+The `hap1`/`hap2` labels refer to hifiasm's haplotypes, since removal happens before
+chrX/chrY partitioning. Removal is whole-contig, and contigs are kept in several
+circumstances by design — see
+[docs/mitochondrial-removal.md](docs/mitochondrial-removal.md), which the summary TSVs are
+there to make auditable.
+
+### Reads and logs
+
+| Output | File | Contents |
+| --- | --- | --- |
+| `fastq` | `<sample>.fastq.gz` | Reads as converted from the BAM, before trimming |
+| `trimmed_fastq` | `<sample>.trimmed.fastq.gz` | Reads given to hifiasm |
+| `cutadapt_report` | `<sample>.cutadapt.log` | How many reads were discarded, and why |
+| `raw_read_stats` | `<sample>.raw.seqkit_stats.tsv` | `seqkit stats -a -T` before trimming |
+| `read_stats` | `<sample>.trimmed.seqkit_stats.tsv` | The same after trimming |
+| `ont_ul_read_stats` | `<sample>.ont_ul.seqkit_stats.tsv` | The same for the ultra-long reads; absent unless `ont_ul_fastq` was given |
+| `hifiasm_log` | `<sample>.hifiasm.log` | hifiasm's stderr, which records the homozygous coverage it inferred and how aggressively it purged |
+
+hifiasm's assembly graphs are deliberately not delivered; re-run the workflow if an
+assembly needs revisiting.
+
+## Further documentation
+
+* [docs/mitochondrial-removal.md](docs/mitochondrial-removal.md) — what mitochondrial
+  removal does and does not remove, and why
+* [docs/container-images.md](docs/container-images.md) — how images are pinned, built and
+  published
+* [docs/validation.md](docs/validation.md) — what is checked, locally and in CI
 
 ## Licensing
 
