@@ -46,8 +46,9 @@ explain each one. Three are worth calling out:
 * **`chrY_no_par_yak` / `chrX_no_par_yak` / `par_yak`** — the pretrained k-mer databases
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.
-  the human rCRS (`NC_012920.1`). These are supplied explicitly instead of being
-  downloaded during the run.
+  the human rCRS (`NC_012920.1`); see
+  [docs/mitochondrial-removal.md](docs/mitochondrial-removal.md) for how to fetch it.
+  These are supplied explicitly instead of being downloaded during the run.
 
 ## Outputs
 

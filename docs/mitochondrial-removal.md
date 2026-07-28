@@ -49,6 +49,17 @@ removed or not, together with its length, covered bases and coverage percentage.
 `removed=yes` row whose `coverage_perc` is well below 100 is where sequence was discarded
 as collateral; raising `min_coverage_perc` makes that rarer.
 
+## Obtaining the reference
+
+The human rCRS, `NC_012920.1`, becomes `mito_reference_fasta` and `mito_reference_gb`:
+
+```sh
+E="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+curl -s "$E?db=nuccore&id=NC_012920.1&rettype=fasta&retmode=text" -o rCRS.fasta
+curl -s "$E?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text"    -o rCRS.gb
+```
+
 ## Where the details are
 
 `workflows/mitohifi_assembly.wdl` documents the criteria and their provenance at the top of
