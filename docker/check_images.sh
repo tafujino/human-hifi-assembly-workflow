@@ -25,70 +25,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-ACCEPT='application/vnd.oci.image.index.v1+json'
-ACCEPT="$ACCEPT,application/vnd.oci.image.manifest.v1+json"
-ACCEPT="$ACCEPT,application/vnd.docker.distribution.manifest.list.v2+json"
-ACCEPT="$ACCEPT,application/vnd.docker.distribution.manifest.v2+json"
-
-# Splits "[registry/]repo[:tag|@digest]" into registry, repository and reference,
-# applying the Docker Hub defaults (docker.io, "library/" for single-name repos).
-split_image() {
-  local image="$1" name ref registry repo
-
-  if [[ "$image" == *@* ]]; then
-    name="${image%@*}"
-    ref="${image##*@}"
-  elif [[ "${image##*/}" == *:* ]]; then
-    name="${image%:*}"
-    ref="${image##*:}"
-  else
-    name="$image"
-    ref="latest"
-  fi
-
-  # The first path component is a registry only if it looks like a host.
-  local head="${name%%/*}"
-  if [[ "$name" == */* && ( "$head" == *.* || "$head" == *:* || "$head" == "localhost" ) ]]; then
-    registry="$head"
-    repo="${name#*/}"
-  else
-    registry="registry-1.docker.io"
-    repo="$name"
-    [[ "$repo" == */* ]] || repo="library/$repo"
-  fi
-
-  printf '%s\n%s\n%s\n' "$registry" "$repo" "$ref"
-}
-
-# Follows the registry bearer-token challenge and reports whether the manifest
-# resolves to HTTP 200.
-image_exists() {
-  local registry="$1" repo="$2" ref="$3"
-  local url="https://$registry/v2/$repo/manifests/$ref"
-  local hdr code chal realm service auth token
-
-  hdr="$(mktemp)"
-  code="$(curl -sS -o /dev/null -D "$hdr" -w '%{http_code}' -H "Accept: $ACCEPT" "$url" || echo 000)"
-
-  if [[ "$code" == "401" ]]; then
-    chal="$(tr -d '\r' < "$hdr" | grep -i '^www-authenticate:' | head -1 || true)"
-    realm="$(printf '%s' "$chal" | sed -n 's/.*realm="\([^"]*\)".*/\1/p')"
-    service="$(printf '%s' "$chal" | sed -n 's/.*service="\([^"]*\)".*/\1/p')"
-
-    if [[ -n "$realm" ]]; then
-      auth="$(curl -sS "$realm?service=$service&scope=repository:$repo:pull" || true)"
-      token="$(printf '%s' "$auth" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
-      [[ -n "$token" ]] || token="$(printf '%s' "$auth" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
-      if [[ -n "$token" ]]; then
-        code="$(curl -sS -o /dev/null -w '%{http_code}' \
-          -H "Accept: $ACCEPT" -H "Authorization: Bearer $token" "$url" || echo 000)"
-      fi
-    fi
-  fi
-
-  rm -f "$hdr"
-  [[ "$code" == "200" ]]
-}
+# shellcheck source=docker/registry_lib.sh
+source "$REPO_ROOT/docker/registry_lib.sh"
 
 images="$(
   grep -rhoE 'String docker = "[^"]+"' "$REPO_ROOT/workflows" |
@@ -97,6 +35,7 @@ images="$(
 )"
 
 if [[ -z "$images" ]]; then
+  # shellcheck disable=SC2016  # the backticks are literal text in the message
   echo 'error: no `String docker = "..."` declarations found under workflows/' >&2
   exit 1
 fi

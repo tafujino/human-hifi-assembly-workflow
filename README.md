@@ -88,14 +88,23 @@ The three images that need building live under `docker/`:
 | `docker/mito-blast-filter/` | `mito-blast-filter` | the BLAST biocontainer plus `mito_blast_filter` |
 
 ```sh
-docker/build_and_push.sh                 # build all
-docker/build_and_push.sh --push yak      # build and publish one
+docker/build_and_push.sh                        # build all
+docker/build_and_push.sh --push yak             # build and publish one
+docker/build_and_push.sh --push --dry-run       # report what would be published
 ```
 
 `REGISTRY` defaults to `ghcr.io/tafujino`; override it to publish under a different
 namespace. `.github/workflows/build-docker-images.yml` builds and publishes on pushes
 that touch `docker/`. Where an image ships a script of ours, `build_and_push.sh` runs
 its `test.sh` before pushing.
+
+Two rules keep a pinned tag meaningful, since the WDL pins these tags by name:
+
+* **A version tag already in the registry is never overwritten.** Bump
+  `docker/<name>/VERSION` to publish a changed image; otherwise the push is skipped with
+  a warning. There is deliberately no override flag.
+* **`:latest` only moves on `main`**, and only when the version tag was actually
+  published in the same run, so it always names content that a version tag also names.
 
 `docker/check_images.sh` verifies that every image pinned in `workflows/*.wdl` actually
 resolves in its registry — tags and digests alike — and that the tags of locally built

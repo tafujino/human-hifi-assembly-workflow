@@ -45,7 +45,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # --latest only on main, so a build from dev or a topic branch cannot move the
+      # moving tag. The version tag itself is never overwritten; see build_and_push.sh.
       - name: Build and push ${{ matrix.image }}
         env:
           REGISTRY: ghcr.io/${{ github.repository_owner }}
-        run: ./docker/build_and_push.sh --push "${{ matrix.image }}"
+          LATEST: ${{ github.ref == 'refs/heads/main' && '--latest' || '' }}
+        run: ./docker/build_and_push.sh --push ${LATEST} "${{ matrix.image }}"
