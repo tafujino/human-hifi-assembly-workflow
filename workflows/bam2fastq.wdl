@@ -1,8 +1,8 @@
 version 1.0
 
-## PacBio HiFi の unaligned BAM を pbtk (pbindex + bam2fastq) を用いて FASTQ に変換するワークフロー。
-## BAM の .pbi インデックスが存在しない場合があるため、最初に PbIndex タスクでインデックスを作成してから
-## Bam2Fastq タスクで変換を行う。
+## Workflow that converts a PacBio HiFi unaligned BAM to FASTQ using pbtk (pbindex + bam2fastq).
+## Since the BAM's .pbi index may not exist, the PbIndex task first creates the index before
+## the Bam2Fastq task performs the conversion.
 
 workflow BamToFastq {
   input {
@@ -42,8 +42,8 @@ task PbIndex {
   command <<<
     set -euo pipefail
 
-    # bam2fastq は .pbi が BAM と同じディレクトリに存在することを要求するため
-    # 作業ディレクトリにシンボリックリンクを作成してからインデックスを作成する
+    # bam2fastq requires the .pbi to be in the same directory as the BAM, so
+    # create a symlink in the working directory before creating the index
     ln -s ~{bam} ~{bam_basename}
     pbindex ~{bam_basename}
   >>>
@@ -77,7 +77,7 @@ task Bam2Fastq {
   command <<<
     set -euo pipefail
 
-    # bam と pbi を同一ディレクトリに配置してから bam2fastq を実行する
+    # place the bam and pbi in the same directory before running bam2fastq
     ln -s ~{bam} ~{bam_basename}
     ln -s ~{pbi} ~{bam_basename}.pbi
 

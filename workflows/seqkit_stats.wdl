@@ -1,6 +1,6 @@
 version 1.0
 
-## FASTQ のリード統計を SeqKit (seqkit stats) を用いて計算するワークフロー。
+## Workflow that computes FASTQ read statistics using SeqKit (seqkit stats).
 
 workflow SeqkitStats {
   input {
@@ -33,7 +33,7 @@ task SeqkitStatsTask {
   command <<<
     set -euo pipefail
 
-    # -a: N50 等の詳細な統計を含める, -T: タブ区切りで出力
+    # -a: include detailed statistics such as N50, -T: output in tab-separated format
     seqkit stats -a -T ~{fastq} > ~{output_prefix}.seqkit_stats.tsv
   >>>
 

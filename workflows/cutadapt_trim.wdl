@@ -1,9 +1,9 @@
 version 1.0
 
-## cutadapt を用いて PacBio HiFi リードに残存する SMRTbell アダプター配列および
-## C2 プライマー配列を除去するタスク。
-## アダプター/プライマーを含むリードはコンカテマー/キメラである可能性が高いため、
-## トリムではなくリードごと破棄する(--discard-trimmed)。
+## Task that uses cutadapt to remove residual SMRTbell adapter sequences and
+## C2 primer sequences from PacBio HiFi reads.
+## Reads containing adapter/primer sequences are likely concatemers/chimeras, so
+## the whole read is discarded rather than trimmed (--discard-trimmed).
 
 task CutadaptTask {
   input {
@@ -18,19 +18,19 @@ task CutadaptTask {
     Int disk_gb = 2 * ceil(size(fastq, "GB")) + 20
   }
 
-  # PacBio SMRTbell ヘアピンアダプター配列(固定値)。
-  # 使用しているケミストリ/SMRT Link のバージョンによって異なる場合があるため、
-  # 実行前に自身のライブラリのアダプター配列と一致するか必ず確認すること。
+  # PacBio SMRTbell hairpin adapter sequence (fixed value).
+  # This may differ depending on the chemistry/SMRT Link version in use, so
+  # be sure to confirm it matches your own library's adapter sequence before running.
   String adapter_sequence = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
 
-  # PacBio C2 プライマー配列(固定値)
+  # PacBio C2 primer sequence (fixed value)
   String c2_primer_sequence = "AAAAAAAAAAAAAAAAAATTAACGGAGGAGGAGGA"
 
   command <<<
     set -euo pipefail
 
-    # -b: アダプター/プライマーをリード中の任意の位置(5'/3')で検索
-    # --discard-trimmed: アダプター/プライマーが検出されたリードは全体を破棄する
+    # -b: search for the adapter/primer at any position (5'/3') within the read
+    # --discard-trimmed: discard the entire read if the adapter/primer is detected
     cutadapt \
       -j ~{cpu} \
       -e ~{error_rate} \

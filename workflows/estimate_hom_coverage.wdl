@@ -1,6 +1,6 @@
 version 1.0
 
-## seqkit stats の出力とヒトゲノムサイズから推定カバレッジ (--hom-cov) を算出するタスク。
+## Task that computes the estimated coverage (--hom-cov) from seqkit stats output and the human genome size.
 
 task EstimateHomCoverage {
   input {
@@ -11,14 +11,14 @@ task EstimateHomCoverage {
     Int memory_gb = 2
   }
 
-  # ヒトゲノムの概算サイズ (~3.1 Gbp)
+  # Approximate size of the human genome (~3.1 Gbp)
   Int genome_size = 3100000000
 
   command <<<
     set -euo pipefail
 
-    # seqkit stats -a -T の出力からヘッダ名で "sum_len" 列を特定し、
-    # ヒトゲノムサイズで割って概算カバレッジを算出する
+    # Identify the "sum_len" column by header name from the seqkit stats -a -T output,
+    # then divide by the human genome size to compute the approximate coverage
     awk -F'\t' -v genome_size=~{genome_size} '
       NR==1 {
         for (i=1; i<=NF; i++) if ($i=="sum_len") col=i
