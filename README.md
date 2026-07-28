@@ -79,8 +79,10 @@ For a female sample the partitioning step is skipped, so these fall through to
 `<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`, and
 `sexchr_grouped` is absent. The file name therefore records whether partitioning was
 applied — and, for that reason, does *not* change when `chrM` is appended to hap2, which is
-what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 carries no mtDNA;
-[docs/mitochondrial.md](docs/mitochondrial.md) explains why hap2 and why last.
+what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 gets no `chrM` — which
+is not the same as hap1 containing no mitochondrial sequence, since removal deliberately
+keeps some. [docs/mitochondrial.md](docs/mitochondrial.md) explains why hap2, why last, and
+what removal leaves behind.
 
 hifiasm runs with `--dual-scaf`, which scaffolds each haplotype using the other, so these
 are scaffolds rather than strictly contigs and may contain N runs of up to 3 Mb.

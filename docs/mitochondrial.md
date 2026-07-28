@@ -58,7 +58,10 @@ value for comparability; raise `max_subject_multiple` if you would rather remove
 Removal takes the mitochondrial contigs out of both haplotypes, and
 `add_mito_to_assembly.wdl` then appends the assembled mitogenome to **hap2** as a contig
 named `chrM`. The Human Pangenome Project's `assembly_cleanup.wdl` does the same, also into
-hap2 alone, so hap1 carries no mtDNA at all.
+hap2 alone, so hap1 gets no `chrM`. Note that this is weaker than "hap1 contains no
+mitochondrial sequence": the two omissions above mean either haplotype can retain a short
+fragment or a very long concatemer, and hap1 has no correct `chrM` for such a leftover to be
+redundant of.
 
 This is what makes the two omissions above safe to make: a leftover fragment is redundant
 because the correct mitogenome is present. It also matters on its own — an assembly with no
