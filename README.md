@@ -73,8 +73,13 @@ thresholds are workflow inputs. See `workflows/mitohifi_assembly.wdl` for the de
 
 ## Container images
 
-Every task pins an image. Third-party tools use `quay.io/biocontainers` tags; the two
-images that need building live under `docker/`:
+Every task pins an image. Third-party images are pinned **by digest**, with the readable
+tag kept in a comment above each one, so that a rebuilt or retagged upstream image cannot
+change what a run executes. The images built here are pinned by tag instead, since a digest
+does not exist until CI has published it; `docker/<name>/VERSION` is the tag, and bumping it
+is how a change to a Dockerfile is published without overwriting what is already out there.
+
+The three images that need building live under `docker/`:
 
 | Directory | Image | Contents |
 | --- | --- | --- |
@@ -93,8 +98,10 @@ that touch `docker/`. Where an image ships a script of ours, `build_and_push.sh`
 its `test.sh` before pushing.
 
 `docker/check_images.sh` verifies that every image pinned in `workflows/*.wdl` actually
-resolves in its registry, and that the tags of locally built images agree with their
-`docker/<name>/VERSION`. It needs only `curl`, not a Docker daemon.
+resolves in its registry — tags and digests alike — and that the tags of locally built
+images agree with their `docker/<name>/VERSION`. It needs only `curl`, not a Docker daemon.
+`docker/check_images.sh --list` prints the pinned images, which is how `docker/images.txt`
+is generated.
 
 ## Validation
 

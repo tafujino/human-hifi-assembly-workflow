@@ -35,6 +35,20 @@ version 1.0
 ## one `call` to get the final, sex-chromosome-partitioned hap1/hap2 FASTA.
 
 workflow PartitionSexchr {
+  meta {
+    description: "Reassigns assembly contigs between hap1 and hap2 according to their chrX/chrY k-mer content, for male samples only. Female samples are passed through unchanged."
+  }
+
+  parameter_meta {
+    sample_sex: "\"male\" or \"female\", case-insensitive. Any other value fails the run. Female samples skip the partitioning entirely; see the note at the top of this file."
+    hap1_fasta_gz: "hap1 contigs, gzipped."
+    hap2_fasta_gz: "hap2 contigs, gzipped."
+    chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository."
+    chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
+    par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
+    output_prefix: "Prefix for every output file."
+  }
+
   input {
     String sample_sex
     File hap1_fasta_gz
@@ -87,10 +101,19 @@ workflow PartitionSexchr {
 }
 
 task ValidateSampleSex {
+  meta {
+    description: "Turns sample_sex into a Boolean, failing on any value that is neither male nor female."
+  }
+
+  parameter_meta {
+    sample_sex: "\"male\" or \"female\", matched case-insensitively. Anything else is an error rather than a silent fallback."
+  }
+
   input {
     String sample_sex
 
-    String docker = "ubuntu:24.04"
+    # ubuntu:24.04
+    String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
     Int cpu = 1
     Int memory_gb = 2
   }
@@ -123,6 +146,21 @@ task ValidateSampleSex {
 }
 
 task YakSexchrPartition {
+  meta {
+    description: "Runs yak sexchr and groupxy.pl to decide which haplotype each contig belongs to, and splits the result into two contig ID lists."
+  }
+
+  parameter_meta {
+    hap1_fasta_gz: "hap1 contigs, gzipped. yak reads gzipped FASTA directly."
+    hap2_fasta_gz: "hap2 contigs, gzipped."
+    chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database."
+    chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database."
+    par_yak: "Pretrained pseudoautosomal-region k-mer database."
+    output_prefix: "Prefix for the count, grouped and contig ID files."
+    chunk_size: "Chunk size for yak sexchr's -K."
+    docker: "Image containing both yak and groupxy.pl; the bioconda yak package omits the latter. Override if you publish it to your own registry."
+  }
+
   input {
     File hap1_fasta_gz
     File hap2_fasta_gz
@@ -183,6 +221,18 @@ task YakSexchrPartition {
 }
 
 task ExtractPartitionedHaplotypeFasta {
+  meta {
+    description: "Rebuilds the two haplotype FASTAs from the contig ID lists, drawing from both input haplotypes since contigs may move between them."
+  }
+
+  parameter_meta {
+    hap1_fasta_gz: "hap1 contigs, gzipped."
+    hap2_fasta_gz: "hap2 contigs, gzipped."
+    hap1_contig_ids: "IDs assigned to hap1 by groupxy.pl."
+    hap2_contig_ids: "IDs assigned to hap2 by groupxy.pl."
+    output_prefix: "Prefix for the two rebuilt FASTAs."
+  }
+
   input {
     File hap1_fasta_gz
     File hap2_fasta_gz
@@ -190,7 +240,8 @@ task ExtractPartitionedHaplotypeFasta {
     File hap2_contig_ids
     String output_prefix
 
-    String docker = "quay.io/biocontainers/seqtk:1.5--h577a1d6_1"
+    # quay.io/biocontainers/seqtk:1.5--h577a1d6_1
+    String docker = "quay.io/biocontainers/seqtk@sha256:adc42bdf55fb21db1c3d395ef852558b5ccc7a23d64985b89119c7a55af99759"
     Int cpu = 2
     Int memory_gb = 4
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20

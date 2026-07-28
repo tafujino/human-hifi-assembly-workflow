@@ -29,6 +29,26 @@ import "mitohifi_assembly.wdl" as mitohifi_assembly_wf
 import "partition_sexchr.wdl" as partition_sexchr_wf
 
 workflow HifiAssembly {
+  meta {
+    description: "End-to-end phased diploid assembly of a human sample from a PacBio HiFi unaligned BAM: BAM to FASTQ, adapter and primer removal, hifiasm assembly, mitochondrial contig removal, and chrX/chrY partitioning."
+  }
+
+  parameter_meta {
+    sample_name: "Prefix for every output file."
+    sample_sex: "\"male\" or \"female\", case-insensitive. Required: chrX/chrY partitioning must not be applied to a female sample, and an unrecognised value fails the run rather than being assumed."
+    unaligned_bam: "PacBio HiFi unaligned BAM. Its .pbi is created during the run."
+    ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
+    ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
+    estimate_hom_cov: "Derive hifiasm's --hom-cov from the trimmed read statistics instead of letting hifiasm infer it. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
+    genome_size: "Genome size the above estimate divides the total base count by, in bp. Ignored unless estimate_hom_cov is set."
+    min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless estimate_hom_cov is set."
+    chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository. Supplied explicitly rather than downloaded."
+    chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
+    par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
+    mito_reference_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS (NC_012920.1). Must be plain text."
+    mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
+  }
+
   input {
     String sample_name
     # "male" or "female" (case-insensitive); required because chrX/chrY partitioning
@@ -143,6 +163,15 @@ workflow HifiAssembly {
     File cutadapt_report = TrimAdapters.report
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
+
+    # The graphs the hap1/hap2 FASTA were extracted from, plus hifiasm's log. Kept because
+    # without them a problem found downstream cannot be traced back, and the assembly cannot
+    # be re-scaffolded, without re-running hifiasm.
+    File hifiasm_log = HifiasmAssembly.hifiasm_log
+    File hifiasm_hap1_gfa_gz = HifiasmAssembly.hap1_contigs_gfa_gz
+    File hifiasm_hap2_gfa_gz = HifiasmAssembly.hap2_contigs_gfa_gz
+    # Empty unless keep_unitig_graphs was set on HifiasmAssembly.
+    Array[File] hifiasm_unitig_graphs_gz = HifiasmAssembly.unitig_graphs_gz
 
     String mito_assembly_status = MitoAssembly.mito_assembly_status
     File mito_fasta_gz = MitoAssembly.mito_fasta_gz

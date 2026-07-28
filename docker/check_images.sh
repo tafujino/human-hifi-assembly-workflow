@@ -121,6 +121,12 @@ while IFS= read -r image; do
     local_version="$(tr -d ' \t\n' < "$REPO_ROOT/docker/$local_name/VERSION")"
   fi
 
+  # A digest reference has no tag to compare against, so the VERSION cross-check only
+  # applies to tag-pinned local images.
+  if [[ "$ref" == sha256:* ]]; then
+    local_version=""
+  fi
+
   if [[ -n "$local_version" && "$ref" != "$local_version" ]]; then
     echo "MISMATCH $image (docker/$local_name/VERSION says $local_version)" >&2
     status=1

@@ -94,6 +94,19 @@ version 1.0
 ## permissive than it appears.
 
 workflow MitoAssembly {
+  meta {
+    description: "Assembles the mitogenome from HiFi reads with MitoHiFi, and removes predominantly mitochondrial contigs from the hifiasm haplotypes. A failed mitogenome assembly is reported rather than propagated."
+  }
+
+  parameter_meta {
+    hifi_fastq: "Adapter-trimmed HiFi reads, the same set given to hifiasm."
+    hap1_fasta_gz: "hifiasm hap1 contigs, gzipped."
+    hap2_fasta_gz: "hifiasm hap2 contigs, gzipped."
+    related_mito_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS. Must be plain text, and a single record if the coverage thresholds are to mean what they say."
+    related_mito_gb: "The same mitogenome in GenBank format, used only for MitoHiFi's annotation. Must be plain text."
+    output_prefix: "Prefix for every output file."
+  }
+
   input {
     File hifi_fastq
     File hap1_fasta_gz
@@ -164,6 +177,20 @@ workflow MitoAssembly {
 }
 
 task MitoHiFiAssembly {
+  meta {
+    description: "Assembles the mitogenome from HiFi reads with mitohifi.py -r. Records the outcome in a status string and always produces its outputs, empty on failure, so that a failed mitogenome does not abort the nuclear assembly."
+  }
+
+  parameter_meta {
+    hifi_fastq: "Adapter-trimmed HiFi reads. Every read is streamed through minimap2 against related_mito_fasta before the mapped fraction is assembled."
+    related_mito_fasta: "Closely related mitogenome in FASTA, plain text."
+    related_mito_gb: "The same mitogenome in GenBank format, plain text."
+    output_prefix: "Prefix for every output file."
+    genetic_code: "NCBI genetic code table for annotation, i.e. mitohifi.py's confusingly named -o. 2 is the vertebrate mitochondrial code."
+    cpu: "Threads for minimap2 and the internal hifiasm run. This is the knob that matters: wall-clock scales with the whole read set."
+    memory_gb: "Memory reservation. Stays modest because the minimap2 index is a single ~16 kb sequence."
+  }
+
   input {
     File hifi_fastq
     File related_mito_fasta
@@ -177,8 +204,12 @@ task MitoHiFiAssembly {
     # Image built from docker/mitohifi/Dockerfile, published by
     # .github/workflows/build-docker-images.yml.
     String docker = "ghcr.io/tafujino/mitohifi:3.2.3"
-    Int cpu = 8
-    Int memory_gb = 16
+    # "-r" mode begins by streaming the entire input FASTQ through minimap2 against the
+    # related mitogenome, so wall-clock scales with the whole read set even though only the
+    # mapped fraction is assembled afterwards. Threads are therefore what matters here;
+    # memory stays modest because the reference index is a single ~16 kb sequence.
+    Int cpu = 16
+    Int memory_gb = 32
     Int disk_gb = 4 * ceil(size(hifi_fastq, "GB")) + 20
   }
 
@@ -243,6 +274,21 @@ task MitoHiFiAssembly {
 }
 
 task IdentifyMitoContigs {
+  meta {
+    description: "BLASTs one haplotype against a mitochondrial subject and lists the contigs that are predominantly mitochondrial. An assembly with no hit at all is a valid result, not an error."
+  }
+
+  parameter_meta {
+    fasta_gz: "Contigs of a single haplotype, gzipped."
+    assembled_mito_fasta_gz: "The sample's own mitogenome from MitoHiFiAssembly, gzipped, and empty when that failed. Preferred as the subject because it makes the removed and the delivered mitochondrial sequences consistent by construction."
+    related_mito_fasta: "Fallback subject, used only when assembled_mito_fasta_gz is empty."
+    output_prefix: "Prefix for the ID list and the summary TSV. Must include a haplotype tag, since both haplotypes are processed by separate calls."
+    max_subject_multiple: "Upper length bound: a contig longer than this many times the subject is kept. Retained at HPP's value; see the known miss described at the top of this file."
+    min_contig_perc: "Lower length bound as a percentage of the subject length. Contigs below it are kept however mitochondrial they look."
+    min_coverage_perc: "Minimum percentage of the contig covered by merged BLAST intervals for it to be removed."
+    docker: "Image carrying BLAST and the mito_blast_filter script. Note that docker/mito-blast-filter/ is GPL-3.0-or-later, unlike the rest of this repository."
+  }
+
   input {
     File fasta_gz
     # The sample's own mitogenome, preferred as the BLAST subject because it makes the
@@ -262,8 +308,10 @@ task IdentifyMitoContigs {
     # Image built from docker/mito-blast-filter/Dockerfile (the BLAST biocontainer plus
     # the mito_blast_filter script), published by
     # .github/workflows/build-docker-images.yml.
-    String docker = "ghcr.io/tafujino/mito-blast-filter:0.1"
-    Int cpu = 4
+    String docker = "ghcr.io/tafujino/mito-blast-filter:0.2"
+    # The cost here is megablast over the whole haplotype as the query; the subject is a
+    # single mitogenome, so memory is small and the run is CPU-bound.
+    Int cpu = 8
     Int memory_gb = 8
     Int disk_gb = 6 * ceil(size(fasta_gz, "GB")) + 20
   }
@@ -326,6 +374,18 @@ task IdentifyMitoContigs {
 }
 
 task RemoveMitoContigs {
+  meta {
+    description: "Drops the listed contigs from each haplotype with seqkit grep -v."
+  }
+
+  parameter_meta {
+    hap1_fasta_gz: "hap1 contigs, gzipped."
+    hap2_fasta_gz: "hap2 contigs, gzipped."
+    hap1_mito_contig_ids: "Contig IDs to drop from hap1. An empty file keeps everything."
+    hap2_mito_contig_ids: "Contig IDs to drop from hap2. An empty file keeps everything."
+    output_prefix: "Prefix for the two filtered FASTAs."
+  }
+
   input {
     File hap1_fasta_gz
     File hap2_fasta_gz
@@ -333,7 +393,8 @@ task RemoveMitoContigs {
     File hap2_mito_contig_ids
     String output_prefix
 
-    String docker = "quay.io/biocontainers/seqkit:2.13.0--he881be0_0"
+    # quay.io/biocontainers/seqkit:2.13.0--he881be0_0
+    String docker = "quay.io/biocontainers/seqkit@sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a"
     Int cpu = 2
     Int memory_gb = 4
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20

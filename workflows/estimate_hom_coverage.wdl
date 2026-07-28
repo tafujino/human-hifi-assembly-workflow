@@ -14,6 +14,16 @@ version 1.0
 ## task quietly produced --hom-cov 0.
 
 task EstimateHomCoverage {
+  meta {
+    description: "Estimates the homozygous coverage for hifiasm's --hom-cov as total bases divided by genome size, failing rather than reporting a nonsensical value."
+  }
+
+  parameter_meta {
+    seqkit_stats: "Output of seqkit stats -a -T for the trimmed reads. Must contain a sum_len column and exactly one data row."
+    genome_size: "Genome size to divide the total base count by, in bp."
+    min_hom_cov: "Lowest coverage to accept. Below it the task fails instead of reporting the value. Set to 0 to accept anything, including 0."
+  }
+
   input {
     File seqkit_stats
 
@@ -31,7 +41,8 @@ task EstimateHomCoverage {
     # a number worth passing on. Set to 0 to accept anything.
     Int min_hom_cov
 
-    String docker = "ubuntu:24.04"
+    # ubuntu:24.04
+    String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
     Int cpu = 1
     Int memory_gb = 2
   }

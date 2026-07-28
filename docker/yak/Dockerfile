@@ -10,7 +10,8 @@
 # yak is MIT-licensed (Copyright (c) 2019- Dana-Farber Cancer Institute). Since this
 # image is published, its licence text is kept under /usr/local/share/licenses/yak/
 # rather than being discarded together with the build tree.
-FROM ubuntu:22.04
+# ubuntu:22.04
+FROM ubuntu@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
 
 ARG YAK_COMMIT=ef033d720e229593b32ad454af14ccea2120ec13
 

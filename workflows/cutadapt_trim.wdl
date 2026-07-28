@@ -6,13 +6,24 @@ version 1.0
 ## the whole read is discarded rather than trimmed (--discard-trimmed).
 
 task CutadaptTask {
+  meta {
+    description: "Discards HiFi reads that contain a residual SMRTbell adapter or C2 primer sequence, since such reads are likely concatemers or chimeras."
+  }
+
+  parameter_meta {
+    fastq: "HiFi reads straight out of bam2fastq. May be gzipped."
+    output_prefix: "Prefix for the trimmed FASTQ and the cutadapt report."
+    error_rate: "Maximum error rate for a match, i.e. cutadapt's -e. Raising it discards more reads."
+  }
+
   input {
     File fastq
     String output_prefix
 
     Float error_rate = 0.1
 
-    String docker = "quay.io/biocontainers/cutadapt:5.2--py313hd978853_2"
+    # quay.io/biocontainers/cutadapt:5.2--py313hd978853_2
+    String docker = "quay.io/biocontainers/cutadapt@sha256:d93aa80a1a9458686b80617f904b6c516cd5cd0c5ea9be69669e68d5ca47e1f2"
     Int cpu = 4
     Int memory_gb = 8
     Int disk_gb = 2 * ceil(size(fastq, "GB")) + 20

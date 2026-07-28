@@ -14,7 +14,8 @@
 # GPL-3 section 5(a) requires the modifications to be stated. They are recorded in the
 # NOTICE file in this directory, which is copied into the image. Keep NOTICE in step
 # with any change to the RUN block.
-FROM ghcr.io/marcelauliano/mitohifi-base:b3.2.3
+# ghcr.io/marcelauliano/mitohifi-base:b3.2.3
+FROM ghcr.io/marcelauliano/mitohifi-base@sha256:017b4b77ea54bfe0cc829469b04c1a530cad0d5397832fc719e00a2ca51fe14b
 
 ARG MITOHIFI_TAG=v3.2.3
 
