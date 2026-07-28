@@ -31,6 +31,10 @@ version 1.0
 ##   9. puts the mitogenome from step 5 back into hap2 as a contig named chrM, using
 ##      add_mito_to_assembly.wdl (AddMitoToHap2). Without this the delivered haplotypes
 ##      contain no mtDNA at all; see that file for why hap2, and why after step 8.
+##  10. renames every contig into PanSN-spec form with rename_contigs_pansn.wdl
+##      (RenameContigsPanSN), e.g. HG002#1#h2tg000042l. Last, so that the haplotype field
+##      comes from the final assignment and so that no "#" ever reaches a step that might
+##      care; see that file.
 
 import "validate_inputs.wdl" as validate_inputs_wf
 import "bam2fastq.wdl" as bam2fastq_wf
@@ -42,6 +46,7 @@ import "mitohifi_assembly.wdl" as mitohifi_assembly_wf
 import "mito_contig_removal.wdl" as mito_contig_removal_wf
 import "partition_sexchr.wdl" as partition_sexchr_wf
 import "add_mito_to_assembly.wdl" as add_mito_wf
+import "rename_contigs_pansn.wdl" as rename_pansn_wf
 
 workflow HifiAssembly {
   meta {
@@ -61,6 +66,7 @@ workflow HifiAssembly {
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
     par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
     add_mito_to_hap2: "Deliver the assembled mitogenome inside hap2 as a contig named chrM, as well as separately. On by default: without it the haplotypes contain no mtDNA, which also undermines the reason short mitochondrial fragments are kept. Turn it off only to obtain strictly mitochondria-free nuclear haplotypes."
+    pansn_contig_names: "Rename the final contigs to PanSN-spec form, sample#haplotype#contig, keeping hifiasm's name as the third field. On by default. Off leaves hifiasm's bare names, which is what a consumer joining the delivered contig ID lists to the FASTA by exact match wants."
     mito_reference_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS (NC_012920.1). Must be plain text."
     mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
   }
@@ -99,6 +105,11 @@ workflow HifiAssembly {
     # only holds while the correct mitogenome is present. Turn it off only when strictly
     # mitochondria-free nuclear haplotypes are what is wanted.
     Boolean add_mito_to_hap2 = true
+    # Whether to rename the final contigs into PanSN-spec form, sample#haplotype#contig. On
+    # by default, since that is what pangenome tooling expects to read sample and haplotype
+    # out of. Turn it off to keep hifiasm's bare names, e.g. for a consumer that cannot cope
+    # with "#" or that joins the delivered ID lists to the FASTA by exact match.
+    Boolean pansn_contig_names = true
     File mito_reference_fasta
     File mito_reference_gb
   }
@@ -208,6 +219,24 @@ workflow HifiAssembly {
     }
   }
 
+  # Named so that the two places needing it -- the rename call and the fall-through in the
+  # output block -- cannot drift apart.
+  File hap2_with_any_mito = select_first([
+    AddMitoToHap2.hap2_with_mito_fasta_gz,
+    PartitionSexchr.new_hap2_fasta_gz
+  ])
+
+  # Last of all, so that the haplotype field records the final assignment rather than
+  # hifiasm's, and so that no "#" reaches an earlier step. See rename_contigs_pansn.wdl.
+  if (pansn_contig_names) {
+    call rename_pansn_wf.RenameContigsPanSN as RenameContigsPanSN {
+      input:
+        hap1_fasta_gz = PartitionSexchr.new_hap1_fasta_gz,
+        hap2_fasta_gz = hap2_with_any_mito,
+        sample_name = sample_name
+    }
+  }
+
   output {
     File fastq = ConvertBamToFastq.fastq
     File raw_read_stats = ComputeRawReadStats.stats
@@ -234,13 +263,18 @@ workflow HifiAssembly {
     File hap1_mito_blast_summary = RemoveMito.hap1_mito_blast_summary
     File hap2_mito_blast_summary = RemoveMito.hap2_mito_blast_summary
 
-    File hap1_contigs_fasta_gz = PartitionSexchr.new_hap1_fasta_gz
+    # Contig names are PanSN-spec (sample#1#... / sample#2#...) unless pansn_contig_names was
+    # turned off. Neither the file names nor these output names change with it.
+    File hap1_contigs_fasta_gz = select_first([
+      RenameContigsPanSN.renamed_hap1_fasta_gz,
+      PartitionSexchr.new_hap1_fasta_gz
+    ])
 
     # Carries chrM when one was assembled; the file name is the same either way, so the
     # output below, not the name, is what records that.
     File hap2_contigs_fasta_gz = select_first([
-      AddMitoToHap2.hap2_with_mito_fasta_gz,
-      PartitionSexchr.new_hap2_fasta_gz
+      RenameContigsPanSN.renamed_hap2_fasta_gz,
+      hap2_with_any_mito
     ])
 
     # Whether hap2 above ends in a chrM contig. Undefined when add_mito_to_hap2 was off,

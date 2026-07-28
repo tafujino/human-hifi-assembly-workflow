@@ -27,6 +27,8 @@ phased, diploid de novo assembly.
 9. **Mitogenome reinsertion** — `add_mito_to_assembly.wdl`, task `AddMitoToHap2`. Appends
    the mitogenome from step 5 to hap2 as a contig named `chrM`. Last, because partitioning
    would otherwise be free to move it to hap1
+10. **PanSN-spec contig names** — `rename_contigs_pansn.wdl`, task `RenameContigsPanSN`.
+    Renames every contig to `<sample>#<1|2>#<contig>`; see below
 
 Each `.wdl` file carries a header comment explaining its design decisions, including
 the ones that are not obvious. Start there rather than here.
@@ -35,13 +37,16 @@ the ones that are not obvious. Start there rather than here.
 
 `miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
-explain each one. Four are worth calling out:
+explain each one. Five are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
   sample it would force both X homologues into hap2. Any other value is rejected
   outright rather than silently treated as female, and the check runs at the very start of
   the workflow, so a typo costs a minute rather than an assembly.
+* **`pansn_contig_names`** — on by default, so contigs are named
+  `<sample>#<haplotype>#<hifiasm name>`; see the outputs section. `sample_name` therefore
+  becomes part of every contig ID.
 * **`add_mito_to_hap2`** — on by default, so the assembled mitogenome is delivered both on
   its own and as a `chrM` contig at the end of hap2. Turning it off gives strictly
   mitochondria-free nuclear haplotypes, at the cost of an assembly containing no mtDNA and
@@ -102,6 +107,26 @@ partitioning does not only move individual contigs:
 
 The yak count file and the two contig ID lists this is derived from are not delivered; they
 say nothing this does not.
+
+#### Contig names
+
+Contigs are named to [PanSN-spec](https://github.com/pangenome/PanSN-spec), which is what
+pangenome tooling reads sample and haplotype out of:
+
+```
+HG002#1#h1tg000001l     hifiasm's hap1 contig, in the final hap1
+HG002#1#h2tg000042l     a contig hifiasm put in hap2 that partitioning moved to hap1
+HG002#2#chrM            the reinserted mitogenome
+```
+
+The third field is hifiasm's own name, deliberately. It keeps the delivered audit files
+joinable — `sexchr_grouped`, the contig ID lists and the BLAST summaries are **not** renamed,
+so the join is `cut -d'#' -f3` rather than an exact match — and it makes a contig that
+changed haplotype say so, since `#1#h2tg…` can only mean partitioning moved it.
+
+Set `pansn_contig_names` to `false` for hifiasm's bare names, which is what a consumer that
+joins those ID lists to the FASTA by exact match, or that cannot cope with `#`, wants. The
+file names and output names are the same either way.
 
 ### The mitogenome
 
