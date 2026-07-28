@@ -85,7 +85,7 @@ version 1.0
 ##     not by its length -- so for this workflow the ceiling mostly just loses recall. It
 ##     is retained at HPP's value for comparability; raise max_subject_multiple to remove
 ##     such contigs. See tests/unit_length.* in docker/mito-blast-filter/, which pins this
-##     behaviour, and internal-doc for the reasoning.
+##     behaviour, and internal-docs/ for the reasoning.
 ##
 ## covered_bp is computed by merging overlapping query intervals, which is where
 ## mito_blast_filter departs from both upstreams: they sum each HSP's share of the contig
