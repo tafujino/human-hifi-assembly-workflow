@@ -22,6 +22,54 @@ version 1.0
 ## caller-supplied inputs rather than being downloaded automatically (MitoHiFi's own
 ## findMitoReference.py is not used). Both files must be plain (non-gzipped) text, since
 ## MitoHiFi runs makeblastdb/blastn directly on them.
+##
+## MitoAssembly bundles all three tasks into a single sub-workflow, so callers only need
+## one `call` to get both the assembled mitogenome and the mitochondria-free hap1/hap2.
+
+workflow MitoAssembly {
+  input {
+    File hifi_fastq
+    File hap1_fasta_gz
+    File hap2_fasta_gz
+    File related_mito_fasta
+    File related_mito_gb
+    String output_prefix
+  }
+
+  call MitoHiFiAssembly as AssembleMito {
+    input:
+      hifi_fastq = hifi_fastq,
+      related_mito_fasta = related_mito_fasta,
+      related_mito_gb = related_mito_gb,
+      output_prefix = output_prefix
+  }
+
+  call IdentifyMitoContigs as IdentifyMitoContigs {
+    input:
+      hap1_fasta_gz = hap1_fasta_gz,
+      hap2_fasta_gz = hap2_fasta_gz,
+      related_mito_fasta = related_mito_fasta,
+      related_mito_gb = related_mito_gb,
+      output_prefix = output_prefix
+  }
+
+  call RemoveMitoContigs as RemoveMitoContigs {
+    input:
+      hap1_fasta_gz = hap1_fasta_gz,
+      hap2_fasta_gz = hap2_fasta_gz,
+      mito_contig_ids = IdentifyMitoContigs.mito_contig_ids,
+      output_prefix = output_prefix
+  }
+
+  output {
+    File mito_fasta_gz = AssembleMito.mito_fasta_gz
+    File mito_gb = AssembleMito.mito_gb
+    File mito_contigs_stats = AssembleMito.contigs_stats
+    File mito_contig_ids = IdentifyMitoContigs.mito_contig_ids
+    File hap1_no_mito_fasta_gz = RemoveMitoContigs.hap1_no_mito_fasta_gz
+    File hap2_no_mito_fasta_gz = RemoveMitoContigs.hap2_no_mito_fasta_gz
+  }
+}
 
 task MitoHiFiAssembly {
   input {

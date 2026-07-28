@@ -11,7 +11,7 @@ version 1.0
 ##      seqkit_stats.wdl (SeqkitStats))
 ##   6. assembles the mitochondrial genome from the trimmed HiFi reads, and identifies and
 ##      removes mitochondrial-derived contigs from the hifiasm hap1/hap2 contigs, using
-##      mitohifi_assembly.wdl (MitoHiFiAssembly, IdentifyMitoContigs, RemoveMitoContigs)
+##      mitohifi_assembly.wdl (MitoAssembly)
 ##   7. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
 ##      assignment using partition_sexchr.wdl (YakSexchrPartition, ExtractPartitionedHaplotypeFasta)
 
@@ -82,35 +82,20 @@ workflow HifiAssembly {
       ul_cut = ul_cut
   }
 
-  call mitohifi_assembly_wf.MitoHiFiAssembly as AssembleMito {
+  call mitohifi_assembly_wf.MitoAssembly as MitoAssembly {
     input:
       hifi_fastq = TrimAdapters.trimmed_fastq,
-      related_mito_fasta = mito_reference_fasta,
-      related_mito_gb = mito_reference_gb,
-      output_prefix = sample_name
-  }
-
-  call mitohifi_assembly_wf.IdentifyMitoContigs as IdentifyMitoContigs {
-    input:
       hap1_fasta_gz = HifiasmAssembly.hap1_contigs_fasta_gz,
       hap2_fasta_gz = HifiasmAssembly.hap2_contigs_fasta_gz,
       related_mito_fasta = mito_reference_fasta,
       related_mito_gb = mito_reference_gb,
-      output_prefix = sample_name
-  }
-
-  call mitohifi_assembly_wf.RemoveMitoContigs as RemoveMitoContigs {
-    input:
-      hap1_fasta_gz = HifiasmAssembly.hap1_contigs_fasta_gz,
-      hap2_fasta_gz = HifiasmAssembly.hap2_contigs_fasta_gz,
-      mito_contig_ids = IdentifyMitoContigs.mito_contig_ids,
       output_prefix = sample_name
   }
 
   call partition_sexchr_wf.YakSexchrPartition as PartitionSexChr {
     input:
-      hap1_fasta_gz = RemoveMitoContigs.hap1_no_mito_fasta_gz,
-      hap2_fasta_gz = RemoveMitoContigs.hap2_no_mito_fasta_gz,
+      hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
+      hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
       chrX_no_par_yak = chrX_no_par_yak,
       par_yak = par_yak,
@@ -119,8 +104,8 @@ workflow HifiAssembly {
 
   call partition_sexchr_wf.ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
     input:
-      hap1_fasta_gz = RemoveMitoContigs.hap1_no_mito_fasta_gz,
-      hap2_fasta_gz = RemoveMitoContigs.hap2_no_mito_fasta_gz,
+      hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
+      hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
       hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
       hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
       output_prefix = sample_name
@@ -134,10 +119,10 @@ workflow HifiAssembly {
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
-    File mito_fasta_gz = AssembleMito.mito_fasta_gz
-    File mito_gb = AssembleMito.mito_gb
-    File mito_contigs_stats = AssembleMito.contigs_stats
-    File mito_contig_ids = IdentifyMitoContigs.mito_contig_ids
+    File mito_fasta_gz = MitoAssembly.mito_fasta_gz
+    File mito_gb = MitoAssembly.mito_gb
+    File mito_contigs_stats = MitoAssembly.mito_contigs_stats
+    File mito_contig_ids = MitoAssembly.mito_contig_ids
 
     File hap1_contigs_fasta_gz = ExtractPartitionedFasta.new_hap1_fasta_gz
     File hap2_contigs_fasta_gz = ExtractPartitionedFasta.new_hap2_fasta_gz
