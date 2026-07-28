@@ -1,0 +1,8 @@
+ghcr.io/tafujino/mitohifi:3.2.3
+ghcr.io/tafujino/yak:0.1
+quay.io/biocontainers/cutadapt:5.2--py313hd978853_2
+quay.io/biocontainers/hifiasm:0.25.0--h5ca1c30_0
+quay.io/biocontainers/pbtk:3.5.0--h9ee0642_0
+quay.io/biocontainers/seqkit:2.13.0--he881be0_0
+quay.io/biocontainers/seqtk:1.5--h577a1d6_1
+ubuntu:24.04

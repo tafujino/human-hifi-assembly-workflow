@@ -1,0 +1,52 @@
+name: Validate WDL
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'workflows/**'
+      - 'docker/check_images.sh'
+      - '.github/workflows/validate-wdl.yml'
+  pull_request:
+    paths:
+      - 'workflows/**'
+      - 'docker/check_images.sh'
+      - '.github/workflows/validate-wdl.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: miniwdl check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install miniwdl
+        run: pip install --disable-pip-version-check miniwdl
+
+      # shellcheck is preinstalled on ubuntu-latest, so miniwdl additionally lints
+      # each task's command block. Lint findings are reported but do not fail the
+      # job; only real errors (type errors, broken imports, ...) do.
+      - name: Check every WDL document
+        run: |
+          for f in workflows/*.wdl; do
+            echo "::group::$f"
+            miniwdl check "$f"
+            echo "::endgroup::"
+          done
+
+  images:
+    name: Pinned container images exist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify every pinned container image is resolvable
+        run: ./docker/check_images.sh
