@@ -143,8 +143,3 @@ The published images redistribute third-party software under its own terms:
   (GPL-3.0-or-later), cd-hit (GPL-2.0), hifiasm (MIT) and minimap2 (MIT).
 * `yak` contains yak (MIT); its licence text is kept at
   `/usr/local/share/licenses/yak/` inside the image.
-
-Note that MitoHiFi's repository-level `LICENSE` says MIT while three of its source files
-carry GPL-3.0-or-later headers naming different copyright holders. That contradiction is
-unresolved upstream; this project honours the per-file notices, as the Human Pangenome
-Project also did.
