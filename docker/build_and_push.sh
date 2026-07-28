@@ -54,6 +54,12 @@ for name in "${images[@]}"; do
   echo "Building $image:$version"
   docker build -t "$image:$version" -t "$image:latest" "$dir"
 
+  # An image that ships a script of our own gets a test.sh; run it before pushing so a
+  # broken one is never published.
+  if [[ -x "$dir/test.sh" ]]; then
+    "$dir/test.sh" "$image:$version"
+  fi
+
   if $push; then
     echo "Pushing $image:$version and $image:latest"
     docker push "$image:$version"

@@ -1,0 +1,6 @@
+contig_id	contig_len	subject_len	covered_bp	coverage_perc	contig_vs_subject_perc	removed
+ceiling_below	165689	16569	165689	100.0000	999.9940	yes
+ceiling_eq	165690	16569	165690	100.0000	1000.0000	no
+floor_above	13256	16569	13256	100.0000	80.0048	yes
+floor_below	13255	16569	13255	100.0000	79.9988	no
+mito_concatemer_over_ceiling	198828	16569	198828	100.0000	1200.0000	no

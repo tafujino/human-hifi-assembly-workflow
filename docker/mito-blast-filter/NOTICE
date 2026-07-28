@@ -1,0 +1,61 @@
+mito-blast-filter
+=================
+
+Everything in this directory is licensed under GPL-3.0-or-later (see LICENSE),
+unlike the rest of this repository, which is MIT (see ../../LICENSE).
+
+Why this directory is GPL-3.0-or-later
+--------------------------------------
+mito_blast_filter re-implements the BLAST-output filtering step used to decide which
+assembly contigs are mitochondrial. It was written after reading, and it deliberately
+adopts the parameter choices of, two upstream implementations:
+
+  * MitoHiFi, src/parse_blast.py
+    Copyright 2020 Marcela Uliano-Silva
+    GPL-3.0-or-later (per the file's own header)
+    https://github.com/marcelauliano/MitoHiFi
+
+  * Human Pangenome Project, hpp_production_workflows,
+    QC/docker/parseMitoBlast/scripts/parse_mito_blast_results/parse_mito_blast_results.py
+    a re-tuning of the above, which retains the GPL-3.0-or-later notice
+    https://github.com/human-pangenomics/hpp_production_workflows
+
+No code, identifier, comment or structure was copied from either: this is a bash and
+awk streaming implementation, whereas both upstreams are pandas dataframe code, and
+the central quantity it computes is different (see below). Thresholds, formulas and
+command-line flags are in any case not copyrightable subject matter.
+
+The reason for the GPL notice is therefore not that copying occurred, but that the
+implementation is not clean-room -- both upstream sources were read, and the specific
+combination of the three filters below is an upstream design choice rather than an
+independent one. Rather than rely on that combination being unprotectable, this
+directory is kept as a self-contained, separately licensed component invoked as an
+external tool, so the workflow that calls it stays unambiguously MIT. Note that
+MitoHiFi's own repository-level LICENSE is MIT while three of its source files carry
+GPL-3.0-or-later headers; that contradiction is unresolved upstream, and honouring the
+per-file GPL notice is the conservative reading. HPP made the same choice.
+
+What was adopted
+----------------
+From HPP (which in turn re-tuned MitoHiFi's 5 / 80 / 50):
+
+  --max-subject-multiple  10.0
+  --min-contig-perc       80.0
+  --min-coverage-perc     70.0
+
+and, in the calling workflow, `blastn -dust no -soft_masking false` together with the
+`-outfmt "6 std qlen slen"` column set.
+
+What differs
+------------
+Coverage is computed by merging overlapping query intervals, whereas both upstreams sum
+each HSP's share of the contig independently. The naive sum double-counts overlapping
+HSPs and can exceed 100% -- the worked example recorded in HPP's own pullContigIDs task
+reads 100.06% -- which makes the threshold quietly more permissive than it appears. A
+contig hit three times over the same 40% of its length scores 120% under the naive sum
+and would be deleted at any threshold below that; here it scores 40% and is kept. See
+tests/unit_merge.blast.tsv for that case.
+
+The three thresholds are also exposed as options rather than hard-coded, so the values
+above are a default chosen for comparability with HPP, not part of the definition of the
+method.

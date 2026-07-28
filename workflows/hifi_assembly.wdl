@@ -11,7 +11,9 @@ version 1.0
 ##      seqkit_stats.wdl (SeqkitStats))
 ##   6. assembles the mitochondrial genome from the trimmed HiFi reads, and identifies and
 ##      removes mitochondrial-derived contigs from the hifiasm hap1/hap2 contigs, using
-##      mitohifi_assembly.wdl (MitoAssembly)
+##      mitohifi_assembly.wdl (MitoAssembly). A failed mitogenome assembly is reported in
+##      mito_assembly_status instead of aborting the run; NUMTs and short mitochondrial
+##      fragments are deliberately kept (see mitohifi_assembly.wdl)
 ##   7. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
 ##      assignment using partition_sexchr.wdl (PartitionSexchr). This step only applies to
 ##      male samples, so sample_sex must be given; for female samples the contigs are passed
@@ -119,10 +121,14 @@ workflow HifiAssembly {
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
+    String mito_assembly_status = MitoAssembly.mito_assembly_status
     File mito_fasta_gz = MitoAssembly.mito_fasta_gz
     File mito_gb = MitoAssembly.mito_gb
     File mito_contigs_stats = MitoAssembly.mito_contigs_stats
-    File mito_contig_ids = MitoAssembly.mito_contig_ids
+    File hap1_mito_contig_ids = MitoAssembly.hap1_mito_contig_ids
+    File hap2_mito_contig_ids = MitoAssembly.hap2_mito_contig_ids
+    File hap1_mito_blast_summary = MitoAssembly.hap1_mito_blast_summary
+    File hap2_mito_blast_summary = MitoAssembly.hap2_mito_blast_summary
 
     File hap1_contigs_fasta_gz = PartitionSexchr.new_hap1_fasta_gz
     File hap2_contigs_fasta_gz = PartitionSexchr.new_hap2_fasta_gz

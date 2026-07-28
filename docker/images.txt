@@ -1,3 +1,4 @@
+ghcr.io/tafujino/mito-blast-filter:0.1
 ghcr.io/tafujino/mitohifi:3.2.3
 ghcr.io/tafujino/yak:0.1
 quay.io/biocontainers/cutadapt:5.2--py313hd978853_2

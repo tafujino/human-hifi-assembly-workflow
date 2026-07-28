@@ -1,0 +1,8 @@
+contig_id	contig_len	subject_len	covered_bp	coverage_perc	contig_vs_subject_perc	removed
+adjacent	1000	1000	800	80.0000	100.0000	yes
+coverage_eq_70	1000	1000	700	70.0000	100.0000	no
+coverage_gt_70	1000	1000	701	70.1000	100.0000	yes
+nested	1000	1000	800	80.0000	100.0000	yes
+overlap_x3	1000	1000	400	40.0000	100.0000	no
+partial_overlap	1000	1000	901	90.1000	100.0000	yes
+reversed_coords	1000	1000	500	50.0000	100.0000	no

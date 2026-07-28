@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+#
+# mito_blast_filter -- decide which assembly contigs are mitochondrial, given the
+# output of `blastn -outfmt "6 std qlen slen"` against a mitochondrial subject.
+#
+# Copyright (C) 2026 Takeshi Fujino
+#
+# Derived from MitoHiFi's src/parse_blast.py (Copyright 2020 Marcela Uliano-Silva)
+# and from the Human Pangenome Project's re-tuning of it in
+# QC/docker/parseMitoBlast/scripts/parse_mito_blast_results/parse_mito_blast_results.py.
+# See the NOTICE file for exactly what was taken and what differs.
+#
+# This program is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software Foundation,
+# either version 3 of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with this
+# program.  If not, see <https://www.gnu.org/licenses/>.
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: mito_blast_filter --blast-output FILE --ids-out FILE --summary-out FILE
+                         [--max-subject-multiple FLOAT] [--min-contig-perc FLOAT]
+                         [--min-coverage-perc FLOAT]
+
+Reads tabular BLAST output produced with -outfmt '6 std qlen slen' and decides,
+per query contig, whether it is mitochondrial. A contig is flagged when all of:
+
+  contig_len                     <  subject_len * max-subject-multiple
+  contig_len * 100 / subject_len >  min-contig-perc
+  covered_bp  * 100 / contig_len >  min-coverage-perc
+
+covered_bp is the number of contig bases covered by at least one HSP, computed by
+merging overlapping query intervals rather than by summing each HSP independently.
+
+Outputs:
+  --ids-out      one flagged contig ID per line; empty when nothing is flagged
+  --summary-out  TSV describing every contig with at least one HSP, flagged or not
+
+An empty BLAST output is not an error: it yields an empty ID list and a
+header-only summary.
+
+Defaults: --max-subject-multiple 10.0 --min-contig-perc 80.0 --min-coverage-perc 70.0
+EOF
+}
+
+die() {
+  echo "mito_blast_filter: error: $*" >&2
+  exit 2
+}
+
+need_value() {
+  [[ $# -ge 2 ]] || die "option $1 requires a value"
+}
+
+blast_output=
+ids_out=
+summary_out=
+max_subject_multiple=10.0
+min_contig_perc=80.0
+min_coverage_perc=70.0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --blast-output)          need_value "$@"; blast_output=$2;          shift 2 ;;
+    --ids-out)               need_value "$@"; ids_out=$2;               shift 2 ;;
+    --summary-out)           need_value "$@"; summary_out=$2;           shift 2 ;;
+    --max-subject-multiple)  need_value "$@"; max_subject_multiple=$2;  shift 2 ;;
+    --min-contig-perc)       need_value "$@"; min_contig_perc=$2;       shift 2 ;;
+    --min-coverage-perc)     need_value "$@"; min_coverage_perc=$2;     shift 2 ;;
+    -h|--help)               usage; exit 0 ;;
+    *)                       die "unknown option: $1" ;;
+  esac
+done
+
+[[ -n "$blast_output" ]] || die "--blast-output is required"
+[[ -n "$ids_out" ]]      || die "--ids-out is required"
+[[ -n "$summary_out" ]]  || die "--summary-out is required"
+[[ -f "$blast_output" ]] || die "no such file: $blast_output"
+
+: > "$ids_out"
+printf 'contig_id\tcontig_len\tsubject_len\tcovered_bp\tcoverage_perc\tcontig_vs_subject_perc\tremoved\n' \
+  > "$summary_out"
+
+# Reduce each HSP to a forward query interval, sort by contig then interval start,
+# then merge overlapping and adjacent intervals in a single pass. LC_ALL=C keeps the
+# grouping order reproducible across locales.
+awk -F'\t' '
+  BEGIN { OFS = "\t" }
+  NR == 1 && NF < 14 {
+    print "mito_blast_filter: error: expected 14 columns from" \
+          " blastn -outfmt \"6 std qlen slen\", got " NF > "/dev/stderr"
+    exit 1
+  }
+  { s = $7; e = $8; if (s > e) { t = s; s = e; e = t }
+    print $1, s, e, $13, $14 }
+' "$blast_output" \
+  | LC_ALL=C sort -k1,1 -k2,2n \
+  | awk -F'\t' \
+      -v max_mult="$max_subject_multiple" \
+      -v min_contig="$min_contig_perc" \
+      -v min_cov="$min_coverage_perc" \
+      -v ids="$ids_out" '
+    function emit() {
+      covered += cur_end - cur_start + 1
+      cov_perc = covered * 100 / qlen
+      contig_perc = qlen * 100 / slen
+      removed = (qlen < slen * max_mult && contig_perc > min_contig && cov_perc > min_cov)
+      printf "%s\t%d\t%d\t%d\t%.4f\t%.4f\t%s\n", \
+        contig, qlen, slen, covered, cov_perc, contig_perc, (removed ? "yes" : "no")
+      if (removed) print contig >> ids
+    }
+    {
+      if ($1 != contig) {
+        if (contig != "") emit()
+        contig = $1; qlen = $4; slen = $5
+        covered = 0; cur_start = $2; cur_end = $3
+        next
+      }
+      if ($2 > cur_end + 1) {
+        covered += cur_end - cur_start + 1
+        cur_start = $2; cur_end = $3
+      } else if ($3 > cur_end) {
+        cur_end = $3
+      }
+    }
+    END { if (contig != "") emit() }
+  ' >> "$summary_out"
