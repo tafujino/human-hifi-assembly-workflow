@@ -2,12 +2,18 @@ version 1.0
 
 ## Task that performs genome assembly using hifiasm.
 ## If an Oxford Nanopore ultra-long read is given, it is used together via the --ul option.
+##
+## hom_cov is optional. When it is not given, --hom-cov is left off the command line and
+## hifiasm infers the homozygous coverage from the k-mer histogram itself, which is its
+## default and is normally reliable. Supply a value only to override an inference that is
+## known to be wrong: the option changes how aggressively duplicate haplotigs are purged,
+## so a worse estimate than hifiasm's own makes the assembly worse.
 
 task HifiasmAssembly {
   input {
     File fastq
     String output_prefix
-    Int hom_cov
+    Int? hom_cov
     File? ont_ul_fastq
     Int? ul_cut
 
@@ -21,7 +27,8 @@ task HifiasmAssembly {
   command <<<
     set -euo pipefail
 
-    hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA --hom-cov ~{hom_cov} \
+    hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA \
+      ~{"--hom-cov " + hom_cov} \
       ~{"--ul " + ont_ul_fastq} \
       ~{"--ul-cut " + ul_cut} \
       ~{fastq}

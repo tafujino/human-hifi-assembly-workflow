@@ -4,8 +4,9 @@ version 1.0
 ##   1. converts it to FASTQ with bam2fastq.wdl (BamToFastq)
 ##   2. computes read statistics before applying cutadapt with seqkit_stats.wdl (SeqkitStats)
 ##   3. removes adapter/C2 primer sequences with cutadapt_trim.wdl (CutadaptTask)
-##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and
-##      computes the estimated coverage (--hom-cov) from the human genome size
+##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and,
+##      only if estimate_hom_cov is set, derives hifiasm's --hom-cov from the genome size
+##      with estimate_hom_coverage.wdl (EstimateHomCoverage)
 ##   5. performs genome assembly with hifiasm (using the --ul option together with an
 ##      Oxford Nanopore ultra-long read if given, and computing its statistics with
 ##      seqkit_stats.wdl (SeqkitStats))
@@ -36,6 +37,12 @@ workflow HifiAssembly {
     File unaligned_bam
     File? ont_ul_fastq
     Int? ul_cut
+    # Whether to derive hifiasm's --hom-cov from the trimmed read statistics instead of
+    # letting hifiasm infer it from the k-mer histogram. Off by default: hifiasm's own
+    # inference is normally reliable, and --hom-cov changes how aggressively duplicate
+    # haplotigs are purged, so overriding it with a cruder estimate makes the assembly
+    # worse. Turn it on when hifiasm's inference is known to be wrong for the sample.
+    Boolean estimate_hom_cov = false
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
@@ -70,9 +77,11 @@ workflow HifiAssembly {
       output_prefix = sample_name + ".trimmed"
   }
 
-  call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
-    input:
-      seqkit_stats = ComputeReadStats.stats
+  if (estimate_hom_cov) {
+    call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
+      input:
+        seqkit_stats = ComputeReadStats.stats
+    }
   }
 
   if (defined(ont_ul_fastq)) {
@@ -87,6 +96,7 @@ workflow HifiAssembly {
     input:
       fastq = TrimAdapters.trimmed_fastq,
       output_prefix = sample_name,
+      # Undefined unless estimate_hom_cov was set, in which case hifiasm omits --hom-cov.
       hom_cov = EstimateHomCoverage.hom_cov,
       ont_ul_fastq = ont_ul_fastq,
       ul_cut = ul_cut

@@ -11,8 +11,9 @@ phased, diploid de novo assembly.
 2. **Raw read statistics** — `seqkit_stats.wdl`
 3. **Adapter and C2 primer removal** — `cutadapt_trim.wdl`. Reads containing an
    adapter or primer are likely concatemers, so the whole read is discarded
-4. **Trimmed read statistics** and **coverage estimation** — `seqkit_stats.wdl`,
-   `estimate_hom_coverage.wdl`, which derives hifiasm's `--hom-cov`
+4. **Trimmed read statistics** — `seqkit_stats.wdl`. Optionally also
+   `estimate_hom_coverage.wdl`, which derives hifiasm's `--hom-cov`; off by default,
+   see below
 5. **Assembly** — `hifiasm_assembly.wdl`. Optionally uses Oxford Nanopore ultra-long
    reads via `--ul`
 6. **Mitochondrial assembly and removal** — `mitohifi_assembly.wdl`. Assembles the
@@ -33,6 +34,12 @@ worth calling out:
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
   sample it would force both X homologues into hap2. Any other value is rejected
   outright rather than silently treated as female.
+* **`estimate_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
+  the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
+  statistics and the genome size instead. Leave it off unless hifiasm's own inference is
+  known to be wrong for the sample: `--hom-cov` governs how aggressively duplicate
+  haplotigs are purged, and total bases divided by genome size is a cruder estimate than
+  the histogram peak hifiasm finds.
 * **`chrY_no_par_yak` / `chrX_no_par_yak` / `par_yak`** — the pretrained k-mer databases
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.
