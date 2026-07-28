@@ -16,10 +16,16 @@ version 1.0
 ## Since groupxy.pl is not included in the bioconda yak package, a custom Docker image
 ## (docker/yak/Dockerfile) built from source with both yak itself and groupxy.pl is used.
 ##
-## This procedure is only meaningful for male (XY) samples, so sample_sex is a required
-## input and the partitioning is skipped entirely for female (XX) samples. groupxy.pl
-## assigns every contig to hap1 or hap2 by comparing its chrY-specific and chrX-specific
-## k-mer counts:
+## This procedure is only meaningful for male (XY) samples, so PartitionSexchr takes an
+## is_male flag and skips the partitioning entirely for female (XX) samples. The flag comes
+## from validate_inputs.wdl's ValidateInputs, which the caller runs before the assembly
+## rather than this sub-workflow deriving it itself: a WDL sub-workflow call waits for all of
+## its inputs, and this one's inputs include the finished assembly, so a check placed here
+## would only reject a malformed sample_sex after the multi-day assembly had already run.
+## See hifi_assembly.wdl.
+##
+## groupxy.pl assigns every contig to hap1 or hap2 by comparing its chrY-specific and
+## chrX-specific k-mer counts:
 ##
 ##   $_->[3] = $_->[6] > ($_->[6] + $_->[7]) * $opts{r}? 3    # chrY-dominant -> hap1
 ##           : $_->[7] > ($_->[6] + $_->[7]) * $opts{r}? 4    # chrX-dominant -> hap2
@@ -36,11 +42,11 @@ version 1.0
 
 workflow PartitionSexchr {
   meta {
-    description: "Reassigns assembly contigs between hap1 and hap2 according to their chrX/chrY k-mer content, for male samples only. Female samples are passed through unchanged."
+    description: "Reassigns assembly contigs between hap1 and hap2 according to their chrX/chrY k-mer content, for male samples only. Female samples are passed through unchanged. Takes an already-validated is_male flag; validate_inputs.wdl's ValidateInputs derives it from sample_sex before the assembly."
   }
 
   parameter_meta {
-    sample_sex: "\"male\" or \"female\", case-insensitive. Any other value fails the run. Female samples skip the partitioning entirely; see the note at the top of this file."
+    is_male: "Whether the sample is male, i.e. ValidateInputs.is_male. False skips the partitioning entirely; see the note at the top of this file."
     hap1_fasta_gz: "hap1 contigs, gzipped."
     hap2_fasta_gz: "hap2 contigs, gzipped."
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository."
@@ -50,7 +56,7 @@ workflow PartitionSexchr {
   }
 
   input {
-    String sample_sex
+    Boolean is_male
     File hap1_fasta_gz
     File hap2_fasta_gz
     File chrY_no_par_yak
@@ -59,12 +65,7 @@ workflow PartitionSexchr {
     String output_prefix
   }
 
-  call ValidateSampleSex {
-    input:
-      sample_sex = sample_sex
-  }
-
-  if (ValidateSampleSex.is_male) {
+  if (is_male) {
     call YakSexchrPartition as PartitionSexChr {
       input:
         hap1_fasta_gz = hap1_fasta_gz,
@@ -100,51 +101,6 @@ workflow PartitionSexchr {
   }
 }
 
-task ValidateSampleSex {
-  meta {
-    description: "Turns sample_sex into a Boolean, failing on any value that is neither male nor female."
-  }
-
-  parameter_meta {
-    sample_sex: "\"male\" or \"female\", matched case-insensitively. Anything else is an error rather than a silent fallback."
-  }
-
-  input {
-    String sample_sex
-
-    # ubuntu:24.04
-    String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
-    Int cpu = 1
-    Int memory_gb = 2
-  }
-
-  command <<<
-    set -euo pipefail
-
-    # Accepted case-insensitively for convenience, but any other value is a hard
-    # error rather than a silent fallback: quietly treating an unrecognised value
-    # as "female" would skip the partitioning with no trace in the outputs.
-    case "$(printf '%s' "~{sample_sex}" | tr '[:upper:]' '[:lower:]')" in
-      male)   echo "true"  ;;
-      female) echo "false" ;;
-      *)
-        echo 'error: sample_sex must be "male" or "female", got "~{sample_sex}"' >&2
-        exit 1
-        ;;
-    esac
-  >>>
-
-  output {
-    Boolean is_male = read_boolean(stdout())
-  }
-
-  runtime {
-    docker: docker
-    cpu: cpu
-    memory: "~{memory_gb} GB"
-  }
-}
-
 task YakSexchrPartition {
   meta {
     description: "Runs yak sexchr and groupxy.pl to decide which haplotype each contig belongs to, and splits the result into two contig ID lists."
@@ -157,7 +113,7 @@ task YakSexchrPartition {
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database."
     par_yak: "Pretrained pseudoautosomal-region k-mer database."
     output_prefix: "Prefix for the count, grouped and contig ID files."
-    chunk_size: "Chunk size for yak sexchr's -K."
+    chunk_size: "Chunk size for yak sexchr's -K, e.g. \"2g\". Interpolated into the command unquoted and not validated, so treat it as a developer knob rather than a caller-supplied value; it is not reachable from HifiAssembly."
     docker: "Image containing both yak and groupxy.pl; the bioconda yak package omits the latter. Override if you publish it to your own registry."
   }
 

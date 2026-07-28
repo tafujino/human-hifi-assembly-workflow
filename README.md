@@ -14,12 +14,15 @@ phased, diploid de novo assembly.
 4. **Trimmed read statistics** — `seqkit_stats.wdl`. Optionally also
    `estimate_hom_coverage.wdl`, which derives hifiasm's `--hom-cov`; off by default,
    see below
-5. **Assembly** — `hifiasm_assembly.wdl`. Optionally uses Oxford Nanopore ultra-long
+5. **Mitochondrial assembly** — `mitohifi_assembly.wdl`, task `MitoHiFiAssembly`.
+   Assembles the mitogenome from the trimmed HiFi reads. It depends on the reads alone, so
+   it runs concurrently with step 6 rather than after it
+6. **Assembly** — `hifiasm_assembly.wdl`. Optionally uses Oxford Nanopore ultra-long
    reads via `--ul`
-6. **Mitochondrial assembly and removal** — `mitohifi_assembly.wdl`. Assembles the
-   mitogenome from the trimmed HiFi reads and removes mitochondrial contigs from the
-   nuclear haplotypes
-7. **chrX/chrY partitioning** — `partition_sexchr.wdl`, yak `sexchr` plus `groupxy.pl`.
+7. **Mitochondrial contig removal** — `mito_contig_removal.wdl`, workflow
+   `RemoveMitoFromHaplotypes`. Removes mitochondrial contigs from the nuclear haplotypes,
+   BLASTing them against the mitogenome from step 5
+8. **chrX/chrY partitioning** — `partition_sexchr.wdl`, yak `sexchr` plus `groupxy.pl`.
    Male samples only; see below
 
 Each `.wdl` file carries a header comment explaining its design decisions, including
@@ -34,7 +37,8 @@ explain each one. Three are worth calling out:
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
   sample it would force both X homologues into hap2. Any other value is rejected
-  outright rather than silently treated as female.
+  outright rather than silently treated as female, and the check runs at the very start of
+  the workflow, so a typo costs a minute rather than an assembly.
 * **`estimate_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
   statistics and `genome_size` instead. Leave it off unless hifiasm's own inference is
@@ -60,10 +64,28 @@ explain each one. Three are worth calling out:
 | --- | --- | --- |
 | `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples, chrX/chrY-partitioned |
 | `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs |
+| `sexchr_grouped` | `<sample>.sexchr_grouped.txt` | Which haplotype each contig came from and which it ended up in; male samples only |
 
 For a female sample the partitioning step is skipped, so these fall through to
-`<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`. The file name
-therefore records whether partitioning was applied.
+`<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`, and
+`sexchr_grouped` is absent. The file name therefore records whether partitioning was
+applied.
+
+`sexchr_grouped` is `groupxy.pl`'s output, one row per contig. Three of its columns matter:
+column 2 is the contig, column 3 the haplotype hifiasm assigned it to, and column 4 the
+haplotype it ended up in. Reading them together matters more than it looks, because
+partitioning does not only move individual contigs:
+
+* **`hap1` becomes the chrY-carrying haplotype by construction.** Contigs whose k-mers are
+  overwhelmingly chrY-specific go to hap1 and chrX-specific ones to hap2, regardless of how
+  hifiasm had phased them.
+* **Everything else may be swapped wholesale.** To keep the autosomes consistent with that,
+  `groupxy.pl` flips every remaining contig's haplotype if hifiasm's hap1 was the one
+  carrying most of the sex chromosome. So the final `hap1` can be hifiasm's hap2 throughout,
+  and column 3 versus column 4 is the only place that is recorded.
+
+The yak count file and the two contig ID lists this is derived from are not delivered; they
+say nothing this does not.
 
 ### The mitogenome
 
@@ -94,8 +116,9 @@ cost a multi-day nuclear assembly. The status distinguishes the cases:
 | `hap1_mito_blast_summary` | `<sample>.hap1.mito_blast_summary.tsv` | Every hap1 contig with a BLAST hit, with its length, covered bases, coverage percentage and whether it was removed |
 | `hap2_mito_blast_summary` | `<sample>.hap2.mito_blast_summary.tsv` | The same for hap2 |
 
-The `hap1`/`hap2` labels refer to hifiasm's haplotypes, since removal happens before
-chrX/chrY partitioning. Removal is whole-contig, and contigs are kept in several
+The `hap1`/`hap2` labels here refer to hifiasm's haplotypes, since removal happens before
+chrX/chrY partitioning — which for a male sample are not necessarily the labels of the final
+assembly. `sexchr_grouped` maps between the two. Removal is whole-contig, and contigs are kept in several
 circumstances by design — see
 [docs/mitochondrial.md](docs/mitochondrial.md), which the summary TSVs are
 there to make auditable.
@@ -107,6 +130,7 @@ there to make auditable.
 | `fastq` | `<sample>.fastq.gz` | Reads as converted from the BAM, before trimming |
 | `trimmed_fastq` | `<sample>.trimmed.fastq.gz` | Reads given to hifiasm |
 | `cutadapt_report` | `<sample>.cutadapt.log` | How many reads were discarded, and why |
+| `cutadapt_stats` | `<sample>.cutadapt_stats.tsv` | The same discard rate as a number: `reads_processed`, `reads_discarded`, `discard_perc` |
 | `raw_read_stats` | `<sample>.raw.seqkit_stats.tsv` | `seqkit stats -a -T` before trimming |
 | `read_stats` | `<sample>.trimmed.seqkit_stats.tsv` | The same after trimming |
 | `ont_ul_read_stats` | `<sample>.ont_ul.seqkit_stats.tsv` | The same for the ultra-long reads; absent unless `ont_ul_fastq` was given |

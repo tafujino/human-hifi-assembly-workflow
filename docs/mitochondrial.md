@@ -13,9 +13,9 @@ curl -s "$E?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text"    -o rCRS.gb
 
 ## What mitochondrial removal does and does not remove
 
-`mitohifi_assembly.wdl` assembles the mitogenome from the trimmed HiFi reads and removes
-predominantly mitochondrial contigs from the two nuclear haplotypes. A contig is removed
-when all three of these hold:
+`mitohifi_assembly.wdl` assembles the mitogenome from the trimmed HiFi reads, and
+`mito_contig_removal.wdl` removes predominantly mitochondrial contigs from the two nuclear
+haplotypes. A contig is removed when all three of these hold:
 
 ```
 contig_len                     <  subject_len * max_subject_multiple   (default 10)
@@ -64,7 +64,7 @@ as collateral; raising `min_coverage_perc` makes that rarer.
 
 ### Where the details are
 
-`workflows/mitohifi_assembly.wdl` documents the criteria and their provenance at the top of
-the file. `docker/mito-blast-filter/NOTICE` covers where the parameter choices came from
+`workflows/mito_contig_removal.wdl` documents the criteria and their provenance at the top
+of the file. `docker/mito-blast-filter/NOTICE` covers where the parameter choices came from
 and how the implementation differs from its upstreams, and that directory's `tests/` pin
 the behaviour described here — including the concatemer miss.

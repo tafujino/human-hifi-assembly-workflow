@@ -1,31 +1,42 @@
 version 1.0
 
 ## End-to-end workflow that takes a PacBio unaligned BAM as input and:
+##   0. checks the inputs that nothing else would catch until hours in, with
+##      validate_inputs.wdl (ValidateInputs), which also turns sample_sex into the Boolean
+##      that step 8 needs. It depends on no computed value, so it runs immediately and a
+##      malformed input fails the run in its first seconds
 ##   1. converts it to FASTQ with bam2fastq.wdl (BamToFastq)
 ##   2. computes read statistics before applying cutadapt with seqkit_stats.wdl (SeqkitStats)
 ##   3. removes adapter/C2 primer sequences with cutadapt_trim.wdl (CutadaptTask)
 ##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and,
 ##      only if estimate_hom_cov is set, derives hifiasm's --hom-cov from the genome size
 ##      with estimate_hom_coverage.wdl (EstimateHomCoverage)
-##   5. performs genome assembly with hifiasm (using the --ul option together with an
+##   5. assembles the mitochondrial genome from the trimmed HiFi reads with
+##      mitohifi_assembly.wdl (MitoHiFiAssembly). This depends on the reads alone, so it is
+##      called here rather than from the removal sub-workflow below and runs concurrently
+##      with step 6 instead of after it (see mitohifi_assembly.wdl). A failed mitogenome
+##      assembly is reported in mito_assembly_status instead of aborting the run
+##   6. performs genome assembly with hifiasm (using the --ul option together with an
 ##      Oxford Nanopore ultra-long read if given, and computing its statistics with
 ##      seqkit_stats.wdl (SeqkitStats))
-##   6. assembles the mitochondrial genome from the trimmed HiFi reads, and identifies and
-##      removes mitochondrial-derived contigs from the hifiasm hap1/hap2 contigs, using
-##      mitohifi_assembly.wdl (MitoAssembly). A failed mitogenome assembly is reported in
-##      mito_assembly_status instead of aborting the run; NUMTs and short mitochondrial
-##      fragments are deliberately kept (see mitohifi_assembly.wdl)
-##   7. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
+##   7. identifies and removes mitochondrial-derived contigs from the hifiasm hap1/hap2
+##      contigs, using mito_contig_removal.wdl (RemoveMitoFromHaplotypes), with the
+##      mitogenome from step 5 as the BLAST subject. NUMTs and short mitochondrial fragments
+##      are deliberately kept (see mito_contig_removal.wdl)
+##   8. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
 ##      assignment using partition_sexchr.wdl (PartitionSexchr). This step only applies to
 ##      male samples, so sample_sex must be given; for female samples the contigs are passed
-##      through unchanged (see partition_sexchr.wdl for why).
+##      through unchanged (see partition_sexchr.wdl for why). The is_male flag it takes comes
+##      from step 0.
 
+import "validate_inputs.wdl" as validate_inputs_wf
 import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
 import "seqkit_stats.wdl" as seqkit_wf
 import "estimate_hom_coverage.wdl" as estimate_hom_coverage_wf
 import "hifiasm_assembly.wdl" as hifiasm_assembly_wf
 import "mitohifi_assembly.wdl" as mitohifi_assembly_wf
+import "mito_contig_removal.wdl" as mito_contig_removal_wf
 import "partition_sexchr.wdl" as partition_sexchr_wf
 
 workflow HifiAssembly {
@@ -34,8 +45,8 @@ workflow HifiAssembly {
   }
 
   parameter_meta {
-    sample_name: "Prefix for every output file."
-    sample_sex: "\"male\" or \"female\", case-insensitive. Required: chrX/chrY partitioning must not be applied to a female sample, and an unrecognised value fails the run rather than being assumed."
+    sample_name: "Prefix for every output file. Must match [A-Za-z0-9._-]+: every task interpolates it into shell commands and output paths unquoted, and ValidateInputs is what enforces that."
+    sample_sex: "\"male\" or \"female\", case-insensitive. Required: chrX/chrY partitioning must not be applied to a female sample, and an unrecognised value fails the run rather than being assumed. Checked at the start of the run, not at the partitioning step."
     unaligned_bam: "PacBio HiFi unaligned BAM. Its .pbi is created during the run."
     ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
@@ -81,6 +92,19 @@ workflow HifiAssembly {
     File mito_reference_gb
   }
 
+  # Depends on nothing that has to be computed, so it starts immediately and a malformed
+  # input aborts the run in its first seconds. This is why the checks live here rather than
+  # next to the steps that need them: inside PartitionSexchr or RemoveMitoFromHaplotypes they
+  # would only run once the assembly those sub-workflows take as input had finished, i.e.
+  # they would reject a typo after a multi-day run rather than before it.
+  call validate_inputs_wf.ValidateInputs as ValidateInputs {
+    input:
+      sample_name = sample_name,
+      sample_sex = sample_sex,
+      mito_reference_fasta = mito_reference_fasta,
+      mito_reference_gb = mito_reference_gb
+  }
+
   call bam2fastq_wf.BamToFastq as ConvertBamToFastq {
     input:
       sample_name = sample_name,
@@ -122,6 +146,17 @@ workflow HifiAssembly {
     }
   }
 
+  # Depends on the trimmed reads alone, so it runs concurrently with the nuclear assembly
+  # below rather than after it. Calling it here instead of from RemoveMitoFromHaplotypes is
+  # what makes that possible; see mitohifi_assembly.wdl.
+  call mitohifi_assembly_wf.MitoHiFiAssembly as AssembleMito {
+    input:
+      hifi_fastq = TrimAdapters.trimmed_fastq,
+      related_mito_fasta = mito_reference_fasta,
+      related_mito_gb = mito_reference_gb,
+      output_prefix = sample_name
+  }
+
   call hifiasm_assembly_wf.HifiasmAssembly as HifiasmAssembly {
     input:
       fastq = TrimAdapters.trimmed_fastq,
@@ -132,21 +167,20 @@ workflow HifiAssembly {
       ul_cut = ul_cut
   }
 
-  call mitohifi_assembly_wf.MitoAssembly as MitoAssembly {
+  call mito_contig_removal_wf.RemoveMitoFromHaplotypes as RemoveMito {
     input:
-      hifi_fastq = TrimAdapters.trimmed_fastq,
       hap1_fasta_gz = HifiasmAssembly.hap1_contigs_fasta_gz,
       hap2_fasta_gz = HifiasmAssembly.hap2_contigs_fasta_gz,
+      assembled_mito_fasta_gz = AssembleMito.mito_fasta_gz,
       related_mito_fasta = mito_reference_fasta,
-      related_mito_gb = mito_reference_gb,
       output_prefix = sample_name
   }
 
   call partition_sexchr_wf.PartitionSexchr as PartitionSexchr {
     input:
-      sample_sex = sample_sex,
-      hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
-      hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
+      is_male = ValidateInputs.is_male,
+      hap1_fasta_gz = RemoveMito.hap1_no_mito_fasta_gz,
+      hap2_fasta_gz = RemoveMito.hap2_no_mito_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
       chrX_no_par_yak = chrX_no_par_yak,
       par_yak = par_yak,
@@ -158,21 +192,33 @@ workflow HifiAssembly {
     File raw_read_stats = ComputeRawReadStats.stats
     File trimmed_fastq = TrimAdapters.trimmed_fastq
     File cutadapt_report = TrimAdapters.report
+    File cutadapt_stats = TrimAdapters.stats
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
     File hifiasm_log = HifiasmAssembly.hifiasm_log
 
-    String mito_assembly_status = MitoAssembly.mito_assembly_status
-    File mito_fasta_gz = MitoAssembly.mito_fasta_gz
-    File mito_gb = MitoAssembly.mito_gb
-    File mito_contigs_stats = MitoAssembly.mito_contigs_stats
-    File hap1_mito_contig_ids = MitoAssembly.hap1_mito_contig_ids
-    File hap2_mito_contig_ids = MitoAssembly.hap2_mito_contig_ids
-    File hap1_mito_blast_summary = MitoAssembly.hap1_mito_blast_summary
-    File hap2_mito_blast_summary = MitoAssembly.hap2_mito_blast_summary
+    # "success" / "partial" / "failed"; see MitoHiFiAssembly's output block for what each
+    # one means for the three files below.
+    String mito_assembly_status = AssembleMito.status
+    File mito_fasta_gz = AssembleMito.mito_fasta_gz
+    File mito_gb = AssembleMito.mito_gb
+    File mito_contigs_stats = AssembleMito.contigs_stats
+    File hap1_mito_contig_ids = RemoveMito.hap1_mito_contig_ids
+    File hap2_mito_contig_ids = RemoveMito.hap2_mito_contig_ids
+    File hap1_mito_blast_summary = RemoveMito.hap1_mito_blast_summary
+    File hap2_mito_blast_summary = RemoveMito.hap2_mito_blast_summary
 
     File hap1_contigs_fasta_gz = PartitionSexchr.new_hap1_fasta_gz
     File hap2_contigs_fasta_gz = PartitionSexchr.new_hap2_fasta_gz
+
+    # groupxy.pl's per-contig assignment table: column 2 is the contig, column 3 the
+    # haplotype hifiasm put it in, column 4 the haplotype it ended up in. Delivered because
+    # partitioning moves contigs between the haplotypes and can swap the two labels
+    # wholesale, and this is the only record of what happened -- the same reason the
+    # mitochondrial summary TSVs above are delivered. The yak count file and the two ID
+    # lists derived from this one are not, since they add nothing this does not already say.
+    # Absent for female samples, where no partitioning takes place.
+    File? sexchr_grouped = PartitionSexchr.sexchr_grouped
   }
 }
