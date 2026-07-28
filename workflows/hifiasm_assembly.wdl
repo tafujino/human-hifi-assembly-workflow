@@ -53,10 +53,6 @@ task HifiasmAssembly {
       ~{"--ul-cut " + ul_cut} \
       ~{fastq} 2>&1 | tee ~{output_prefix}.hifiasm.log
 
-    # hifiasm only outputs GFA, so extract the hap1/hap2 contig FASTA from it. The GFAs
-    # themselves are deliberately not kept: the intent is to re-run this workflow when an
-    # assembly looks wrong, rather than to inspect the graph, and for a human genome the
-    # unitig graphs in particular are several GB each even gzipped.
     awk '$1=="S"{print ">"$2; print $3}' ~{output_prefix}.bp.hap1.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap1.p_ctg.fasta.gz
     awk '$1=="S"{print ">"$2; print $3}' ~{output_prefix}.bp.hap2.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap2.p_ctg.fasta.gz
   >>>

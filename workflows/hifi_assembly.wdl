@@ -87,9 +87,6 @@ workflow HifiAssembly {
       unaligned_bam = unaligned_bam
   }
 
-  # Each SeqkitStats call needs its own output_prefix: they all write
-  # "<output_prefix>.seqkit_stats.tsv", so sharing sample_name would make the three
-  # stats files indistinguishable once collected into a flat output directory.
   call seqkit_wf.SeqkitStats as ComputeRawReadStats {
     input:
       fastq = ConvertBamToFastq.fastq,
@@ -164,9 +161,6 @@ workflow HifiAssembly {
     File read_stats = ComputeReadStats.stats
     File? ont_ul_read_stats = ComputeOntUlReadStats.stats
 
-    # hifiasm's log, which records the homozygous coverage it inferred and how aggressively
-    # it purged. The assembly graphs are deliberately not delivered; re-run the workflow if
-    # an assembly needs revisiting.
     File hifiasm_log = HifiasmAssembly.hifiasm_log
 
     String mito_assembly_status = MitoAssembly.mito_assembly_status
