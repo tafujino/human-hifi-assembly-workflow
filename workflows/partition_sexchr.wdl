@@ -16,11 +16,27 @@ version 1.0
 ## Since groupxy.pl is not included in the bioconda yak package, a custom Docker image
 ## (docker/yak/Dockerfile) built from source with both yak itself and groupxy.pl is used.
 ##
-## PartitionSexchr bundles both tasks into a single sub-workflow, so callers only need
+## This procedure is only meaningful for male (XY) samples, so sample_sex is a required
+## input and the partitioning is skipped entirely for female (XX) samples. groupxy.pl
+## assigns every contig to hap1 or hap2 by comparing its chrY-specific and chrX-specific
+## k-mer counts:
+##
+##   $_->[3] = $_->[6] > ($_->[6] + $_->[7]) * $opts{r}? 3    # chrY-dominant -> hap1
+##           : $_->[7] > ($_->[6] + $_->[7]) * $opts{r}? 4    # chrX-dominant -> hap2
+##           : 0;
+##
+## In a female sample the chrY count ($_->[6]) is ~0 for every contig, so every chrX
+## contig takes the second branch and both X homologues would be forced into hap2,
+## leaving hap1 with no chrX at all. There is nothing to partition in that case anyway --
+## hifiasm's own phasing is already the correct answer -- so PartitionSexchr passes the
+## input hap1/hap2 through unchanged and the yak outputs are not produced.
+##
+## PartitionSexchr bundles the tasks into a single sub-workflow, so callers only need
 ## one `call` to get the final, sex-chromosome-partitioned hap1/hap2 FASTA.
 
 workflow PartitionSexchr {
   input {
+    String sample_sex
     File hap1_fasta_gz
     File hap2_fasta_gz
     File chrY_no_par_yak
@@ -29,32 +45,80 @@ workflow PartitionSexchr {
     String output_prefix
   }
 
-  call YakSexchrPartition as PartitionSexChr {
+  call ValidateSampleSex {
     input:
-      hap1_fasta_gz = hap1_fasta_gz,
-      hap2_fasta_gz = hap2_fasta_gz,
-      chrY_no_par_yak = chrY_no_par_yak,
-      chrX_no_par_yak = chrX_no_par_yak,
-      par_yak = par_yak,
-      output_prefix = output_prefix
+      sample_sex = sample_sex
   }
 
-  call ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
-    input:
-      hap1_fasta_gz = hap1_fasta_gz,
-      hap2_fasta_gz = hap2_fasta_gz,
-      hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
-      hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
-      output_prefix = output_prefix
+  if (ValidateSampleSex.is_male) {
+    call YakSexchrPartition as PartitionSexChr {
+      input:
+        hap1_fasta_gz = hap1_fasta_gz,
+        hap2_fasta_gz = hap2_fasta_gz,
+        chrY_no_par_yak = chrY_no_par_yak,
+        chrX_no_par_yak = chrX_no_par_yak,
+        par_yak = par_yak,
+        output_prefix = output_prefix
+    }
+
+    call ExtractPartitionedHaplotypeFasta as ExtractPartitionedFasta {
+      input:
+        hap1_fasta_gz = hap1_fasta_gz,
+        hap2_fasta_gz = hap2_fasta_gz,
+        hap1_contig_ids = PartitionSexChr.hap1_contig_ids,
+        hap2_contig_ids = PartitionSexChr.hap2_contig_ids,
+        output_prefix = output_prefix
+    }
   }
 
   output {
-    File sexchr_cnt = PartitionSexChr.sexchr_cnt
-    File sexchr_grouped = PartitionSexChr.sexchr_grouped
-    File hap1_contig_ids = PartitionSexChr.hap1_contig_ids
-    File hap2_contig_ids = PartitionSexChr.hap2_contig_ids
-    File new_hap1_fasta_gz = ExtractPartitionedFasta.new_hap1_fasta_gz
-    File new_hap2_fasta_gz = ExtractPartitionedFasta.new_hap2_fasta_gz
+    # Undefined for female samples, where no yak sexchr run takes place.
+    File? sexchr_cnt = PartitionSexChr.sexchr_cnt
+    File? sexchr_grouped = PartitionSexChr.sexchr_grouped
+    File? hap1_contig_ids = PartitionSexChr.hap1_contig_ids
+    File? hap2_contig_ids = PartitionSexChr.hap2_contig_ids
+
+    # For female samples these fall back to the inputs, so the file names stay
+    # ".no_mito.fasta.gz" instead of ".groupxy.fasta.gz" -- i.e. the output name
+    # itself records whether partitioning was applied.
+    File new_hap1_fasta_gz = select_first([ExtractPartitionedFasta.new_hap1_fasta_gz, hap1_fasta_gz])
+    File new_hap2_fasta_gz = select_first([ExtractPartitionedFasta.new_hap2_fasta_gz, hap2_fasta_gz])
+  }
+}
+
+task ValidateSampleSex {
+  input {
+    String sample_sex
+
+    String docker = "ubuntu:24.04"
+    Int cpu = 1
+    Int memory_gb = 2
+  }
+
+  command <<<
+    set -euo pipefail
+
+    # Accepted case-insensitively for convenience, but any other value is a hard
+    # error rather than a silent fallback: quietly treating an unrecognised value
+    # as "female" would skip the partitioning with no trace in the outputs.
+    case "$(printf '%s' "~{sample_sex}" | tr '[:upper:]' '[:lower:]')" in
+      male)   echo "true"  ;;
+      female) echo "false" ;;
+      *)
+        echo 'error: sample_sex must be "male" or "female", got "~{sample_sex}"' >&2
+        exit 1
+        ;;
+    esac
+  >>>
+
+  output {
+    Boolean is_male = read_boolean(stdout())
+  }
+
+  runtime {
+    docker: docker
+    cpu: cpu
+    memory: "~{memory_gb} GB"
   }
 }
 

@@ -13,7 +13,9 @@ version 1.0
 ##      removes mitochondrial-derived contigs from the hifiasm hap1/hap2 contigs, using
 ##      mitohifi_assembly.wdl (MitoAssembly)
 ##   7. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
-##      assignment using partition_sexchr.wdl (PartitionSexchr)
+##      assignment using partition_sexchr.wdl (PartitionSexchr). This step only applies to
+##      male samples, so sample_sex must be given; for female samples the contigs are passed
+##      through unchanged (see partition_sexchr.wdl for why).
 
 import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
@@ -26,6 +28,9 @@ import "partition_sexchr.wdl" as partition_sexchr_wf
 workflow HifiAssembly {
   input {
     String sample_name
+    # "male" or "female" (case-insensitive); required because chrX/chrY partitioning
+    # must not be applied to female samples.
+    String sample_sex
     File unaligned_bam
     File? ont_ul_fastq
     Int? ul_cut
@@ -97,6 +102,7 @@ workflow HifiAssembly {
 
   call partition_sexchr_wf.PartitionSexchr as PartitionSexchr {
     input:
+      sample_sex = sample_sex,
       hap1_fasta_gz = MitoAssembly.hap1_no_mito_fasta_gz,
       hap2_fasta_gz = MitoAssembly.hap2_no_mito_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
