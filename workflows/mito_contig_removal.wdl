@@ -184,10 +184,12 @@ task IdentifyMitoContigs {
     # the mito_blast_filter script), published by
     # .github/workflows/build-docker-images.yml.
     String docker = "quay.io/tafujino/mito-blast-filter:0.2"
-    # The cost here is megablast over the whole haplotype as the query; the subject is a
-    # single mitogenome, so memory is small and the run is CPU-bound.
+    # The subject is a single mitogenome, so its own memory footprint is small, but the
+    # query is the whole haplotype assembly (a multi-gigabase genome) loaded in full by
+    # blastn and multithreaded across cpu cores. Observed maxvmem was 9.2G against an 8GB
+    # request on SHIROKANE (UGE killed the job); 16GB leaves headroom above that.
     Int cpu = 8
-    Int memory_gb = 8
+    Int memory_gb = 16
     Int disk_gb = 6 * ceil(size(fasta_gz, "GB")) + 20
   }
 
