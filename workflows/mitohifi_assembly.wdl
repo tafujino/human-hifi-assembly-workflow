@@ -187,6 +187,7 @@ task SkipMitoAssembly {
   input {
     # ubuntu:24.04
     String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+    Int memory_gb = 8
   }
 
   command <<<
@@ -208,6 +209,6 @@ task SkipMitoAssembly {
   runtime {
     docker: docker
     cpu: 1
-    memory: "1 GB"
+    memory: "~{memory_gb} GB"
   }
 }
