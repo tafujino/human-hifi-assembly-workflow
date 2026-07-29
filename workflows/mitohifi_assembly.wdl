@@ -61,8 +61,8 @@ task MitoHiFiAssembly {
     related_mito_gb: "The same mitogenome in GenBank format, plain text."
     output_prefix: "Prefix for every output file."
     genetic_code: "NCBI genetic code table for annotation, i.e. mitohifi.py's confusingly named -o. 2 is the vertebrate mitochondrial code."
-    cpu: "Threads for minimap2 and the internal hifiasm run. This is the knob that matters: wall-clock scales with the whole read set."
-    memory_gb: "Memory reservation. Stays modest because the minimap2 index is a single ~16 kb sequence."
+    cpu: "Threads for minimap2 and the internal hifiasm run. This is the knob that matters: wall-clock scales with the whole read set. Also divides memory_gb into the per-process virtual memory limit; see the command block for why."
+    memory_gb: "Memory reservation. Stays modest because the minimap2 index is a single ~16 kb sequence. Also the numerator of the per-process virtual memory limit; see the command block."
   }
 
   input {
@@ -89,6 +89,17 @@ task MitoHiFiAssembly {
 
   command <<<
     set -euo pipefail
+
+    # MitoFinder's circularization/annotation step (exonerate/HMMER underneath) is known to
+    # reserve virtual memory far beyond what it actually uses, well past this task's own
+    # memory reservation. On a scheduler that kills on virtual rather than resident memory,
+    # that takes out the whole job before mitohifi.py's own per-contig error handling ever
+    # gets a chance to run -- defeating the point of treating a failed mitogenome as
+    # non-fatal (see below). Capping each process to the task's memory divided across its
+    # threads means a single runaway process is killed by the kernel instead, which
+    # mitohifi.py already tolerates per contig, and the total across up to ~{cpu} concurrent
+    # processes stays within what was actually requested.
+    ulimit -v $(( ~{memory_gb} * 1024 * 1024 / ~{cpu} ))
 
     # A non-zero exit is recorded rather than propagated; see the header comment in this
     # file for why the nuclear assembly must survive a failed mitogenome assembly.
