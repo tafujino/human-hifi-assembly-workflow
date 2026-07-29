@@ -81,7 +81,7 @@ task RenameContigsPanSN {
     # of it, and reusing an already pinned image keeps the image set unchanged.
     String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
     Int cpu = 4
-    Int memory_gb = 4
+    Int memory_gb = 8
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20
   }
 

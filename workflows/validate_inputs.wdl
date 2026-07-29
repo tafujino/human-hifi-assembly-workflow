@@ -50,7 +50,7 @@ task ValidateInputs {
     # ubuntu:24.04
     String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
     Int cpu = 1
-    Int memory_gb = 2
+    Int memory_gb = 8
   }
 
   # See the header comment: these two are passed as files so that no caller-supplied string

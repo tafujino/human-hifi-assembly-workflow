@@ -199,7 +199,7 @@ task ExtractPartitionedHaplotypeFasta {
     # quay.io/biocontainers/seqtk:1.5--h577a1d6_1
     String docker = "quay.io/biocontainers/seqtk@sha256:adc42bdf55fb21db1c3d395ef852558b5ccc7a23d64985b89119c7a55af99759"
     Int cpu = 2
-    Int memory_gb = 4
+    Int memory_gb = 8
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20
   }
 

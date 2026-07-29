@@ -286,7 +286,7 @@ task RemoveMitoContigs {
     # quay.io/biocontainers/seqkit:2.13.0--he881be0_0
     String docker = "quay.io/biocontainers/seqkit@sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a"
     Int cpu = 2
-    Int memory_gb = 4
+    Int memory_gb = 8
     Int disk_gb = 4 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB")) + 20
   }
 
