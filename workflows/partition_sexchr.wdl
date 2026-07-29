@@ -131,7 +131,7 @@ task YakSexchrPartition {
     # Image built from docker/yak/Dockerfile (containing yak itself and groupxy.pl),
     # published by .github/workflows/build-docker-images.yml. Override the docker
     # input from the caller if you publish it to your own registry instead.
-    String docker = "ghcr.io/tafujino/yak:0.1"
+    String docker = "quay.io/tafujino/yak:0.1"
     Int cpu = 16
     Int memory_gb = 32
     Int disk_gb = 2 * ceil(size(hap1_fasta_gz, "GB") + size(hap2_fasta_gz, "GB") + size(chrY_no_par_yak, "GB") + size(chrX_no_par_yak, "GB") + size(par_yak, "GB")) + 20

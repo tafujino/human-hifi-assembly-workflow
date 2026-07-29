@@ -20,10 +20,13 @@ docker/build_and_push.sh --push yak             # build and publish one
 docker/build_and_push.sh --push --dry-run       # report what would be published
 ```
 
-`REGISTRY` defaults to `ghcr.io/tafujino`; override it to publish under a different
+`REGISTRY` defaults to `quay.io/tafujino`; override it to publish under a different
 namespace. `.github/workflows/build-docker-images.yml` builds and publishes on pushes that
-touch `docker/`. Where an image ships a script of ours, `build_and_push.sh` runs its
-`test.sh` before pushing, so a failing one is never published.
+touch `docker/`, authenticating with the `QUAY_USERNAME`/`QUAY_PASSWORD` repository secrets
+(a Quay.io robot account works well for this) rather than `GITHUB_TOKEN`, since these images
+are on Quay.io rather than GitHub Container Registry -- Cromwell's docker hash lookup, used
+for call caching, does not support `ghcr.io`. Where an image ships a script of ours,
+`build_and_push.sh` runs its `test.sh` before pushing, so a failing one is never published.
 
 ## Two publishing rules
 

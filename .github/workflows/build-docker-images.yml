@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   discover:
@@ -41,14 +40,14 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
 
       # --latest only on main, so a build from dev or a topic branch cannot move the
       # moving tag. The version tag itself is never overwritten; see build_and_push.sh.
       - name: Build and push ${{ matrix.image }}
         env:
-          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          REGISTRY: quay.io/tafujino
           LATEST: ${{ github.ref == 'refs/heads/main' && '--latest' || '' }}
         run: ./docker/build_and_push.sh --push ${LATEST} "${{ matrix.image }}"

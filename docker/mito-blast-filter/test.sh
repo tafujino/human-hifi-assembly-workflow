@@ -5,12 +5,12 @@
 # pushing, so a filter that fails its tests is never published.
 #
 # Usage: docker/mito-blast-filter/test.sh [image]
-#        (image defaults to ghcr.io/tafujino/mito-blast-filter:latest)
+#        (image defaults to quay.io/tafujino/mito-blast-filter:latest)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-image="${1:-ghcr.io/tafujino/mito-blast-filter:latest}"
+image="${1:-quay.io/tafujino/mito-blast-filter:latest}"
 
 echo "Testing $image"
 exec docker run --rm \

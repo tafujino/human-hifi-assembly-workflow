@@ -24,14 +24,14 @@
 #   --dry-run   report what would be built and pushed, without doing either
 #
 # With no image names given, every docker/<name>/ directory containing a Dockerfile is
-# built. REGISTRY defaults to ghcr.io/tafujino; override it via the REGISTRY environment
-# variable (CI sets it from the checked-out repo's owner so forks publish under their own
-# namespace).
+# built. REGISTRY defaults to quay.io/tafujino; override it via the REGISTRY environment
+# variable to publish under a different namespace (e.g. a fork pushing to its own Quay.io
+# account for testing).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REGISTRY="${REGISTRY:-ghcr.io/tafujino}"
+REGISTRY="${REGISTRY:-quay.io/tafujino}"
 
 # shellcheck source=docker/registry_lib.sh
 source "$SCRIPT_DIR/registry_lib.sh"

@@ -183,7 +183,7 @@ task IdentifyMitoContigs {
     # Image built from docker/mito-blast-filter/Dockerfile (the BLAST biocontainer plus
     # the mito_blast_filter script), published by
     # .github/workflows/build-docker-images.yml.
-    String docker = "ghcr.io/tafujino/mito-blast-filter:0.2"
+    String docker = "quay.io/tafujino/mito-blast-filter:0.2"
     # The cost here is megablast over the whole haplotype as the query; the subject is a
     # single mitogenome, so memory is small and the run is CPU-bound.
     Int cpu = 8

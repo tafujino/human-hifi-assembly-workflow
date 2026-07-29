@@ -77,7 +77,7 @@ task MitoHiFiAssembly {
 
     # Image built from docker/mitohifi/Dockerfile, published by
     # .github/workflows/build-docker-images.yml.
-    String docker = "ghcr.io/tafujino/mitohifi:3.2.3"
+    String docker = "quay.io/tafujino/mitohifi:3.2.3"
     # "-r" mode begins by streaming the entire input FASTQ through minimap2 against the
     # related mitogenome, so wall-clock scales with the whole read set even though only the
     # mapped fraction is assembled afterwards. Threads are therefore what matters here;
