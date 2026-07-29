@@ -17,7 +17,8 @@ produce a phased, diploid de novo assembly.
    see below
 5. **Mitochondrial assembly** — `mitohifi_assembly.wdl`, task `MitoHiFiAssembly`.
    Assembles the mitogenome from the trimmed HiFi reads. It depends on the reads alone, so
-   it runs concurrently with step 6 rather than after it
+   it runs concurrently with step 6 rather than after it. `assemble_mitogenome` skips this
+   (task `SkipMitoAssembly` stands in); see below
 6. **Assembly** — `hifiasm_assembly.wdl`. Optionally uses Oxford Nanopore ultra-long
    reads via `--ul`
 7. **Mitochondrial contig removal** — `mito_contig_removal.wdl`, workflow
@@ -38,7 +39,7 @@ the ones that are not obvious. Start there rather than here.
 
 `miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
-explain each one. Six are worth calling out:
+explain each one. Seven are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
@@ -52,6 +53,11 @@ explain each one. Six are worth calling out:
 * **`pansn_contig_names`** — on by default, so contigs are named
   `<sample>#<haplotype>#<hifiasm name>`; see the outputs section. `sample_name` therefore
   becomes part of every contig ID.
+* **`assemble_mitogenome`** — on by default. Turn it off, by exception only (e.g. a MitoHiFi
+  dependency misbehaving on a given HPC), to skip mitochondrial assembly entirely:
+  `mito_assembly_status` reads `skipped`, `mito_contig_removal.wdl` falls back to
+  `mito_reference_fasta` as its BLAST subject, and hap2 gets no `chrM` regardless of
+  `add_mito_to_hap2` — the same path taken when the assembly fails on its own.
 * **`add_mito_to_hap2`** — on by default, so the assembled mitogenome is delivered both on
   its own and as a `chrM` contig at the end of hap2. Turning it off gives strictly
   mitochondria-free nuclear haplotypes, at the cost of an assembly containing no mtDNA and
@@ -138,7 +144,7 @@ file names and output names are the same either way.
 
 | Output | File | Contents |
 | --- | --- | --- |
-| `mito_assembly_status` | — | `success`, `partial` or `failed`; see below |
+| `mito_assembly_status` | — | `success`, `partial`, `failed` or `skipped`; see below |
 | `mito_fasta_gz` | `<sample>.mito.fasta.gz` | Assembled mitogenome |
 | `mito_gb` | `<sample>.mito.gb` | Its annotation, from MitoFinder |
 | `mito_contigs_stats` | `<sample>.contigs_stats.tsv` | MitoHiFi's per-candidate statistics |
@@ -153,6 +159,8 @@ cost a multi-day nuclear assembly. The status distinguishes the cases:
 * `failed` — no mitogenome was produced. All three files above are empty, and the supplied
   reference was used as the BLAST subject for contig removal instead of the sample's own
   mitogenome.
+* `skipped` — `assemble_mitogenome` was off, so `MitoHiFiAssembly` never ran. All three
+  files above are empty, and downstream treats this exactly like `failed`.
 
 `mitohifi_log` is where to look when the status is not `success`. `mitohifi.py` reduces the
 read set twice before assembling: it maps every read to the reference, then discards the

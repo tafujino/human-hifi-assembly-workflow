@@ -31,10 +31,16 @@ version 1.0
 ## about the quality of the nuclear assembly -- including its MitoFinder annotation and
 ## rotation steps failing even when a perfectly usable mitogenome sequence was assembled.
 ## Letting that abort a multi-day nuclear assembly is the wrong trade, so this task records
-## the outcome in a three-valued status ("success" / "partial" / "failed") and always
-## produces its outputs, empty when nothing was assembled. Deciding what to do with an
-## empty mitogenome is left to the consumer; mito_contig_removal.wdl falls back to
-## related_mito_fasta as its BLAST subject in that case.
+## the outcome in a status string ("success" / "partial" / "failed") and always produces its
+## outputs, empty when nothing was assembled. Deciding what to do with an empty mitogenome is
+## left to the consumer; mito_contig_removal.wdl falls back to related_mito_fasta as its
+## BLAST subject in that case, and add_mito_to_assembly.wdl leaves hap2 without a chrM.
+##
+## SkipMitoAssembly, below, produces that same empty-everything shape with status "skipped",
+## for hifi_assembly.wdl to call instead of MitoHiFiAssembly when its assemble_mitogenome
+## input is off. Every consumer already treats an empty mito_fasta_gz as "nothing to use
+## here", so nothing downstream needs to know the difference between a skipped assembly and
+## a failed one.
 ##
 ##
 ## The read filter, and why the log is delivered
@@ -61,8 +67,8 @@ task MitoHiFiAssembly {
     related_mito_gb: "The same mitogenome in GenBank format, plain text."
     output_prefix: "Prefix for every output file."
     genetic_code: "NCBI genetic code table for annotation, i.e. mitohifi.py's confusingly named -o. 2 is the vertebrate mitochondrial code."
-    cpu: "Threads for minimap2 and the internal hifiasm run. This is the knob that matters: wall-clock scales with the whole read set. Also divides memory_gb into the per-process virtual memory limit; see the command block for why."
-    memory_gb: "Memory reservation. Stays modest because the minimap2 index is a single ~16 kb sequence. Also the numerator of the per-process virtual memory limit; see the command block."
+    cpu: "Threads for minimap2 and the internal hifiasm run. This is the knob that matters: wall-clock scales with the whole read set."
+    memory_gb: "Memory reservation. Stays modest because the minimap2 index is a single ~16 kb sequence."
   }
 
   input {
@@ -89,17 +95,6 @@ task MitoHiFiAssembly {
 
   command <<<
     set -euo pipefail
-
-    # MitoFinder's circularization/annotation step (exonerate/HMMER underneath) is known to
-    # reserve virtual memory far beyond what it actually uses, well past this task's own
-    # memory reservation. On a scheduler that kills on virtual rather than resident memory,
-    # that takes out the whole job before mitohifi.py's own per-contig error handling ever
-    # gets a chance to run -- defeating the point of treating a failed mitogenome as
-    # non-fatal (see below). Capping each process to the task's memory divided across its
-    # threads means a single runaway process is killed by the kernel instead, which
-    # mitohifi.py already tolerates per contig, and the total across up to ~{cpu} concurrent
-    # processes stays within what was actually requested.
-    ulimit -v $(( ~{memory_gb} * 1024 * 1024 / ~{cpu} ))
 
     # A non-zero exit is recorded rather than propagated; see the header comment in this
     # file for why the nuclear assembly must survive a failed mitogenome assembly.
@@ -162,6 +157,9 @@ task MitoHiFiAssembly {
     #            contigs_stats may be empty
     # "failed"   no mitogenome was produced; all three files below are empty, and
     #            mito_contig_removal.wdl falls back to related_mito_fasta as its subject
+    #
+    # See SkipMitoAssembly, below, for the fourth value ("skipped") this task itself never
+    # produces.
     String status = read_string("status.txt")
     File mito_fasta_gz = "~{output_prefix}.mito.fasta.gz"
     File mito_gb = "~{output_prefix}.mito.gb"
@@ -178,5 +176,38 @@ task MitoHiFiAssembly {
     cpu: cpu
     memory: "~{memory_gb} GB"
     disks: "local-disk ~{disk_gb} SSD"
+  }
+}
+
+task SkipMitoAssembly {
+  meta {
+    description: "Stands in for MitoHiFiAssembly when hifi_assembly.wdl's assemble_mitogenome input is off. Produces the same output shape -- everything empty, status \"skipped\" -- so mito_contig_removal.wdl and add_mito_to_assembly.wdl need no change: both already treat an empty mito_fasta_gz as nothing to use."
+  }
+
+  input {
+    # ubuntu:24.04
+    String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+  }
+
+  command <<<
+    set -euo pipefail
+    printf '' | gzip -c > mito.fasta.gz
+    : > mito.gb
+    : > contigs_stats.tsv
+    : > mitohifi.log
+  >>>
+
+  output {
+    String status = "skipped"
+    File mito_fasta_gz = "mito.fasta.gz"
+    File mito_gb = "mito.gb"
+    File contigs_stats = "contigs_stats.tsv"
+    File mitohifi_log = "mitohifi.log"
+  }
+
+  runtime {
+    docker: docker
+    cpu: 1
+    memory: "1 GB"
   }
 }

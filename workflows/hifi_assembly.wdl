@@ -16,7 +16,10 @@ version 1.0
 ##      mitohifi_assembly.wdl (MitoHiFiAssembly). This depends on the reads alone, so it is
 ##      called here rather than from the removal sub-workflow below and runs concurrently
 ##      with step 6 instead of after it (see mitohifi_assembly.wdl). A failed mitogenome
-##      assembly is reported in mito_assembly_status instead of aborting the run
+##      assembly is reported in mito_assembly_status instead of aborting the run.
+##      assemble_mitogenome, off only by exception, skips this step (SkipMitoAssembly
+##      stands in, reporting "skipped"); steps 7 and 9 already treat an empty assembled
+##      mitogenome as nothing to use, so turning it off also means hap2 gets no chrM
 ##   6. performs genome assembly with hifiasm (using the --ul option together with an
 ##      Oxford Nanopore ultra-long read if given, and computing its statistics with
 ##      seqkit_stats.wdl (SeqkitStats))
@@ -60,6 +63,7 @@ workflow HifiAssembly {
     unaligned_bams: "One or more PacBio HiFi unaligned BAMs, typically one per SMRT cell. They are merged into a single read set, and a .pbi is created for each during the run. Supplying the same BAM twice is rejected rather than doubling its reads."
     ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
+    assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM (see add_mito_to_hap2) and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
     estimate_hom_cov: "Derive hifiasm's --hom-cov from the trimmed read statistics instead of letting hifiasm infer it. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
     genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless estimate_hom_cov is set."
     min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless estimate_hom_cov is set."
@@ -82,6 +86,10 @@ workflow HifiAssembly {
     Array[File]+ unaligned_bams
     File? ont_ul_fastq
     Int? ul_cut
+    # Whether to assemble the mitogenome at all. On by default. Turn it off only by
+    # exception (e.g. a MitoHiFi dependency misbehaving on this HPC) -- see
+    # mitohifi_assembly.wdl's SkipMitoAssembly for what stands in when it is off.
+    Boolean assemble_mitogenome = true
     # Whether to derive hifiasm's --hom-cov from the trimmed read statistics instead of
     # letting hifiasm infer it from the k-mer histogram. Off by default: hifiasm's own
     # inference is normally reliable, and --hom-cov changes how aggressively duplicate
@@ -175,13 +183,30 @@ workflow HifiAssembly {
   # Depends on the trimmed reads alone, so it runs concurrently with the nuclear assembly
   # below rather than after it. Calling it here instead of from RemoveMitoFromHaplotypes is
   # what makes that possible; see mitohifi_assembly.wdl.
-  call mitohifi_assembly_wf.MitoHiFiAssembly as AssembleMito {
-    input:
-      hifi_fastq = TrimAdapters.trimmed_fastq,
-      related_mito_fasta = mito_reference_fasta,
-      related_mito_gb = mito_reference_gb,
-      output_prefix = sample_name
+  if (assemble_mitogenome) {
+    call mitohifi_assembly_wf.MitoHiFiAssembly as AssembleMito {
+      input:
+        hifi_fastq = TrimAdapters.trimmed_fastq,
+        related_mito_fasta = mito_reference_fasta,
+        related_mito_gb = mito_reference_gb,
+        output_prefix = sample_name
+    }
   }
+
+  # Stands in for the call above when assemble_mitogenome is off, with the same empty-
+  # everything output shape; see mitohifi_assembly.wdl's SkipMitoAssembly.
+  if (!assemble_mitogenome) {
+    call mitohifi_assembly_wf.SkipMitoAssembly as SkipMito {}
+  }
+
+  # Named so that every consumer below reads the same value regardless of which of the two
+  # calls above actually ran, the same pattern hap2_with_any_mito uses further down. The
+  # "_any" suffix keeps these from colliding with the identically-named outputs below.
+  String mito_assembly_status_any = select_first([AssembleMito.status, SkipMito.status])
+  File mito_fasta_gz_any = select_first([AssembleMito.mito_fasta_gz, SkipMito.mito_fasta_gz])
+  File mito_gb_any = select_first([AssembleMito.mito_gb, SkipMito.mito_gb])
+  File mito_contigs_stats_any = select_first([AssembleMito.contigs_stats, SkipMito.contigs_stats])
+  File mitohifi_log_any = select_first([AssembleMito.mitohifi_log, SkipMito.mitohifi_log])
 
   call hifiasm_assembly_wf.HifiasmAssembly as HifiasmAssembly {
     input:
@@ -197,7 +222,7 @@ workflow HifiAssembly {
     input:
       hap1_fasta_gz = HifiasmAssembly.hap1_contigs_fasta_gz,
       hap2_fasta_gz = HifiasmAssembly.hap2_contigs_fasta_gz,
-      assembled_mito_fasta_gz = AssembleMito.mito_fasta_gz,
+      assembled_mito_fasta_gz = mito_fasta_gz_any,
       related_mito_fasta = mito_reference_fasta,
       output_prefix = sample_name
   }
@@ -219,7 +244,7 @@ workflow HifiAssembly {
     call add_mito_wf.AddMitoToHap2 as AddMitoToHap2 {
       input:
         hap2_fasta_gz = PartitionSexchr.new_hap2_fasta_gz,
-        mito_fasta_gz = AssembleMito.mito_fasta_gz
+        mito_fasta_gz = mito_fasta_gz_any
     }
   }
 
@@ -253,15 +278,17 @@ workflow HifiAssembly {
     File hifiasm_log = HifiasmAssembly.hifiasm_log
 
     # mitohifi.py's log, which is where the mapped and filtered read counts are; see
-    # mitohifi_assembly.wdl on why those two numbers matter.
-    File mitohifi_log = AssembleMito.mitohifi_log
+    # mitohifi_assembly.wdl on why those two numbers matter. Empty when assemble_mitogenome
+    # is off.
+    File mitohifi_log = mitohifi_log_any
 
-    # "success" / "partial" / "failed"; see MitoHiFiAssembly's output block for what each
-    # one means for the three files below.
-    String mito_assembly_status = AssembleMito.status
-    File mito_fasta_gz = AssembleMito.mito_fasta_gz
-    File mito_gb = AssembleMito.mito_gb
-    File mito_contigs_stats = AssembleMito.contigs_stats
+    # "success" / "partial" / "failed", or "skipped" when assemble_mitogenome is off; see
+    # MitoHiFiAssembly's and SkipMitoAssembly's output blocks for what each one means for
+    # the three files below.
+    String mito_assembly_status = mito_assembly_status_any
+    File mito_fasta_gz = mito_fasta_gz_any
+    File mito_gb = mito_gb_any
+    File mito_contigs_stats = mito_contigs_stats_any
     File hap1_mito_contig_ids = RemoveMito.hap1_mito_contig_ids
     File hap2_mito_contig_ids = RemoveMito.hap2_mito_contig_ids
     File hap1_mito_blast_summary = RemoveMito.hap1_mito_blast_summary
