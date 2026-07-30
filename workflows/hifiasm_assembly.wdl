@@ -1,7 +1,9 @@
 version 1.0
 
 ## Task that performs genome assembly using hifiasm.
-## If an Oxford Nanopore ultra-long read is given, it is used together via the --ul option.
+## If one or more Oxford Nanopore ultra-long read files are given, they are used together via
+## the --ul option, which itself accepts a comma-separated list -- so hifiasm does the merging,
+## and this task passes every file straight through rather than concatenating them first.
 ##
 ## hom_cov is optional. When it is not given, --hom-cov is left off the command line and
 ## hifiasm infers the homozygous coverage from the k-mer histogram itself, which is its
@@ -18,7 +20,7 @@ task HifiasmAssembly {
     fastq: "Adapter-trimmed HiFi reads. May be gzipped."
     output_prefix: "Prefix for every output file, i.e. hifiasm's -o."
     hom_cov: "Homozygous coverage for --hom-cov. Leave undefined to let hifiasm infer it, which is the recommended default; see the note at the top of this file."
-    ont_ul_fastq: "Oxford Nanopore ultra-long reads for --ul. Leave undefined for a HiFi-only assembly."
+    ont_ul_fastq: "Zero or more Oxford Nanopore ultra-long read files for --ul, joined with a comma; hifiasm merges them itself. Leave empty for a HiFi-only assembly."
     ul_cut: "Minimum ultra-long read length for --ul-cut. Only meaningful together with ont_ul_fastq."
     docker: "hifiasm image, pinned by digest. Must be 0.19.9 or newer: --telo-m does not exist before that and hifiasm exits non-zero on an unknown option."
     cpu: "Threads for hifiasm's -t."
@@ -30,7 +32,7 @@ task HifiasmAssembly {
     File fastq
     String output_prefix
     Int? hom_cov
-    File? ont_ul_fastq
+    Array[File] ont_ul_fastq = []
     Int? ul_cut
 
     # quay.io/biocontainers/hifiasm:0.25.0--h5ca1c30_0
@@ -51,7 +53,7 @@ task HifiasmAssembly {
     # rather than strictly contigs and may contain N runs of up to --scaf-gap (default 3 Mb).
     hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA \
       ~{"--hom-cov " + hom_cov} \
-      ~{"--ul " + ont_ul_fastq} \
+      ~{if length(ont_ul_fastq) > 0 then "--ul " + sep(",", ont_ul_fastq) else ""} \
       ~{"--ul-cut " + ul_cut} \
       ~{fastq} 2>&1 | tee ~{output_prefix}.hifiasm.log
 

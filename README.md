@@ -192,7 +192,7 @@ there to make auditable.
 | `cutadapt_stats` | `<sample>.cutadapt_stats.tsv` | The same discard rate as a number: `reads_processed`, `reads_discarded`, `discard_perc` |
 | `raw_read_stats` | `<sample>.raw.seqkit_stats.tsv` | `seqkit stats -a -T` before trimming |
 | `read_stats` | `<sample>.trimmed.seqkit_stats.tsv` | The same after trimming |
-| `ont_ul_read_stats` | `<sample>.ont_ul.seqkit_stats.tsv` | The same for the ultra-long reads; absent unless `ont_ul_fastq` was given |
+| `ont_ul_read_stats` | `<sample>.ont_ul_<i>.seqkit_stats.tsv` | The same for each ultra-long read file, one per element of `ont_ul_fastq`; empty array if none were given |
 | `hifiasm_log` | `<sample>.hifiasm.log` | hifiasm's stderr, which records the homozygous coverage it inferred and how aggressively it purged |
 | `mitohifi_log` | `<sample>.mitohifi.log` | `mitohifi.py`'s log. Read this first when `mito_assembly_status` is not `success`: it reports how many reads mapped to the reference and how many survived the length filter |
 

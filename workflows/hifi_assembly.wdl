@@ -20,9 +20,9 @@ version 1.0
 ##      assemble_mitogenome, off only by exception, skips this step (SkipMitoAssembly
 ##      stands in, reporting "skipped"); steps 7 and 9 already treat an empty assembled
 ##      mitogenome as nothing to use, so turning it off also means hap2 gets no chrM
-##   6. performs genome assembly with hifiasm (using the --ul option together with an
-##      Oxford Nanopore ultra-long read if given, and computing its statistics with
-##      seqkit_stats.wdl (SeqkitStats))
+##   6. performs genome assembly with hifiasm (using the --ul option together with one or
+##      more Oxford Nanopore ultra-long read files if given, and computing each one's
+##      statistics with seqkit_stats.wdl (SeqkitStats))
 ##   7. identifies and removes mitochondrial-derived contigs from the hifiasm hap1/hap2
 ##      contigs, using mito_contig_removal.wdl (RemoveMitoFromHaplotypes), with the
 ##      mitogenome from step 5 as the BLAST subject. NUMTs and short mitochondrial fragments
@@ -61,7 +61,7 @@ workflow HifiAssembly {
     sample_name: "Prefix for every output file. Must match [A-Za-z0-9._-]+: every task interpolates it into shell commands and output paths unquoted, and ValidateInputs is what enforces that."
     sample_sex: "\"male\" or \"female\", case-insensitive. Required: chrX/chrY partitioning must not be applied to a female sample, and an unrecognised value fails the run rather than being assumed. Checked at the start of the run, not at the partitioning step."
     unaligned_bams: "One or more PacBio HiFi unaligned BAMs, typically one per SMRT cell. They are merged into a single read set, and a .pbi is created for each during the run. Supplying the same BAM twice is rejected rather than doubling its reads."
-    ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
+    ont_ul_fastq: "Zero or more Oxford Nanopore ultra-long read files. Given, they are integrated with hifiasm's --ul (which merges them itself) and each file's statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
     assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
     override_hom_cov: "Override hifiasm's own homozygous-coverage inference with a value derived from the trimmed read statistics instead. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
@@ -83,7 +83,7 @@ workflow HifiAssembly {
     # One or more, typically one per SMRT cell. Array[File]+ rather than Array[File], so an
     # empty list is a type error rather than an assembly of nothing.
     Array[File]+ unaligned_bams
-    File? ont_ul_fastq
+    Array[File] ont_ul_fastq = []
     Int? ul_cut
     # Whether to assemble the mitogenome at all. On by default. Turn it off only by
     # exception (e.g. a MitoHiFi dependency misbehaving on this HPC) -- see
@@ -165,11 +165,13 @@ workflow HifiAssembly {
     }
   }
 
-  if (defined(ont_ul_fastq)) {
+  # One call per file rather than one call for all of them, since SeqkitStats takes a single
+  # FASTQ; the index keeps their output_prefix distinct, as SeqkitStats requires.
+  scatter (ont_ul_idx in range(length(ont_ul_fastq))) {
     call seqkit_wf.SeqkitStats as ComputeOntUlReadStats {
       input:
-        fastq = select_first([ont_ul_fastq]),
-        output_prefix = sample_name + ".ont_ul"
+        fastq = ont_ul_fastq[ont_ul_idx],
+        output_prefix = sample_name + ".ont_ul_" + ont_ul_idx
     }
   }
 
@@ -257,7 +259,7 @@ workflow HifiAssembly {
     File cutadapt_report = TrimAdapters.report
     File cutadapt_stats = TrimAdapters.stats
     File read_stats = ComputeReadStats.stats
-    File? ont_ul_read_stats = ComputeOntUlReadStats.stats
+    Array[File] ont_ul_read_stats = ComputeOntUlReadStats.stats
 
     File hifiasm_log = HifiasmAssembly.hifiasm_log
 
