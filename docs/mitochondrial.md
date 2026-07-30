@@ -75,13 +75,14 @@ Two things follow:
 
 * `hap2_contigs_fasta_gz` keeps the same file name whether or not a `chrM` was added, so
   the `chrM_in_hap2` output is what records it: `true` if a `chrM` is present, `false` if
-  the mitogenome assembly produced nothing, and absent if `add_mito_to_hap2` was off.
+  the mitogenome assembly produced nothing (including when `assemble_mitogenome` is off).
 * A `mito_assembly_status` of `partial` still yields a usable sequence, so it is added;
   only `failed` leaves hap2 without a `chrM`.
 
-Set `add_mito_to_hap2` to `false` to get strictly mitochondria-free nuclear haplotypes.
-Doing so also removes the premise for keeping short fragments, which then become the only
-mitochondrial sequence in the haplotypes.
+Turn `assemble_mitogenome` off to get strictly mitochondria-free nuclear haplotypes (aside
+from NUMTs and any short fragment left behind; see above). Doing so also removes the premise
+for keeping short fragments, which then become the only mitochondrial sequence in the
+haplotypes.
 
 ### Removal is whole-contig
 

@@ -13,7 +13,7 @@ produce a phased, diploid de novo assembly.
 3. **Adapter and C2 primer removal** — `cutadapt_trim.wdl`. Reads containing an
    adapter or primer are likely concatemers, so the whole read is discarded
 4. **Trimmed read statistics** — `seqkit_stats.wdl`. Optionally also
-   `estimate_hom_coverage.wdl`, which derives hifiasm's `--hom-cov`; off by default,
+   `estimate_hom_coverage.wdl`, which overrides hifiasm's `--hom-cov`; off by default,
    see below
 5. **Mitochondrial assembly** — `mitohifi_assembly.wdl`, task `MitoHiFiAssembly`.
    Assembles the mitogenome from the trimmed HiFi reads. It depends on the reads alone, so
@@ -50,20 +50,17 @@ explain each one. Seven are worth calling out:
   several BAMs and merged into one read set; `bam2fastq` does the merging itself. Supplying
   the same BAM twice is rejected rather than silently doubling its reads. Two BAMs may share
   a file name.
-* **`pansn_contig_names`** — on by default, so contigs are named
+* **`use_pansn_contig_names`** — on by default, so contigs are named
   `<sample>#<haplotype>#<hifiasm name>`; see the outputs section. `sample_name` therefore
   becomes part of every contig ID.
 * **`assemble_mitogenome`** — on by default. Turn it off, by exception only (e.g. a MitoHiFi
   dependency misbehaving on a given HPC), to skip mitochondrial assembly entirely:
   `mito_assembly_status` reads `skipped`, `mito_contig_removal.wdl` falls back to
-  `mito_reference_fasta` as its BLAST subject, and hap2 gets no `chrM` regardless of
-  `add_mito_to_hap2` — the same path taken when the assembly fails on its own.
-* **`add_mito_to_hap2`** — on by default, so the assembled mitogenome is delivered both on
-  its own and as a `chrM` contig at the end of hap2. Turning it off gives strictly
-  mitochondria-free nuclear haplotypes, at the cost of an assembly containing no mtDNA and
-  of the premise for keeping short mitochondrial fragments; see
+  `mito_reference_fasta` as its BLAST subject, and hap2 gets no `chrM` — the same path taken
+  when the assembly fails on its own. The assembled mitogenome, when there is one, is always
+  delivered both on its own and as a `chrM` contig at the end of hap2; see
   [docs/mitochondrial.md](docs/mitochondrial.md).
-* **`estimate_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
+* **`override_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
   statistics and `genome_size_mb` instead. Leave it off unless hifiasm's own inference is
   known to be wrong for the sample: `--hom-cov` governs how aggressively duplicate
@@ -71,7 +68,7 @@ explain each one. Seven are worth calling out:
   the histogram peak hifiasm finds. Its two knobs, `genome_size_mb` (~3100, i.e. ~3.1 Gbp,
   in Mb rather than bp since Cromwell's expression parser rejects a bare `3100000000`) and
   `min_hom_cov` (the coverage below which the run fails rather than handing hifiasm a
-  useless number), are declared here and are ignored while `estimate_hom_cov` is off.
+  useless number), are declared here and are ignored while `override_hom_cov` is off.
 * **`chrY_no_par_yak` / `chrX_no_par_yak` / `par_yak`** — the pretrained k-mer databases
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.
@@ -89,7 +86,7 @@ explain each one. Seven are worth calling out:
 | --- | --- | --- |
 | `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples, chrX/chrY-partitioned |
 | `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs, ending in the assembled mitogenome as a contig named `chrM` |
-| `chrM_in_hap2` | — | Whether hap2 really ends in a `chrM`; absent if `add_mito_to_hap2` was off |
+| `chrM_in_hap2` | — | Whether hap2 really ends in a `chrM`; false when no mitogenome was assembled |
 | `sexchr_grouped` | `<sample>.sexchr_grouped.txt` | Which haplotype each contig came from and which it ended up in; male samples only |
 
 For a female sample the partitioning step is skipped, so these fall through to
@@ -136,7 +133,7 @@ joinable — `sexchr_grouped`, the contig ID lists and the BLAST summaries are *
 so the join is `cut -d'#' -f3` rather than an exact match — and it makes a contig that
 changed haplotype say so, since `#1#h2tg…` can only mean partitioning moved it.
 
-Set `pansn_contig_names` to `false` for hifiasm's bare names, which is what a consumer that
+Set `use_pansn_contig_names` to `false` for hifiasm's bare names, which is what a consumer that
 joins those ID lists to the FASTA by exact match, or that cannot cope with `#`, wants. The
 file names and output names are the same either way.
 

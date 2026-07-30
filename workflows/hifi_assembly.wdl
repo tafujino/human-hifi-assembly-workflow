@@ -10,7 +10,7 @@ version 1.0
 ##   2. computes read statistics before applying cutadapt with seqkit_stats.wdl (SeqkitStats)
 ##   3. removes adapter/C2 primer sequences with cutadapt_trim.wdl (CutadaptTask)
 ##   4. computes read statistics after trimming with seqkit_stats.wdl (SeqkitStats), and,
-##      only if estimate_hom_cov is set, derives hifiasm's --hom-cov from the genome size
+##      only if override_hom_cov is set, derives hifiasm's --hom-cov from the genome size
 ##      with estimate_hom_coverage.wdl (EstimateHomCoverage)
 ##   5. assembles the mitochondrial genome from the trimmed HiFi reads with
 ##      mitohifi_assembly.wdl (MitoHiFiAssembly). This depends on the reads alone, so it is
@@ -63,15 +63,14 @@ workflow HifiAssembly {
     unaligned_bams: "One or more PacBio HiFi unaligned BAMs, typically one per SMRT cell. They are merged into a single read set, and a .pbi is created for each during the run. Supplying the same BAM twice is rejected rather than doubling its reads."
     ont_ul_fastq: "Oxford Nanopore ultra-long reads. Given, they are integrated with hifiasm's --ul and their statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
-    assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM (see add_mito_to_hap2) and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
-    estimate_hom_cov: "Derive hifiasm's --hom-cov from the trimmed read statistics instead of letting hifiasm infer it. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
-    genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless estimate_hom_cov is set."
-    min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless estimate_hom_cov is set."
+    assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
+    override_hom_cov: "Override hifiasm's own homozygous-coverage inference with a value derived from the trimmed read statistics instead. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
+    genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless override_hom_cov is set."
+    min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless override_hom_cov is set."
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository. Supplied explicitly rather than downloaded."
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
     par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
-    add_mito_to_hap2: "Deliver the assembled mitogenome inside hap2 as a contig named chrM, as well as separately. On by default: without it the haplotypes contain no mtDNA, which also undermines the reason short mitochondrial fragments are kept. Turn it off only to obtain strictly mitochondria-free nuclear haplotypes."
-    pansn_contig_names: "Rename the final contigs to PanSN-spec form, sample#haplotype#contig, keeping hifiasm's name as the third field. On by default. Off leaves hifiasm's bare names, which is what a consumer joining the delivered contig ID lists to the FASTA by exact match wants."
+    use_pansn_contig_names: "Rename the final contigs to PanSN-spec form, sample#haplotype#contig, keeping hifiasm's name as the third field. On by default. Off leaves hifiasm's bare names, which is what a consumer joining the delivered contig ID lists to the FASTA by exact match wants."
     mito_reference_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS (NC_012920.1). Must be plain text."
     mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
   }
@@ -90,13 +89,13 @@ workflow HifiAssembly {
     # exception (e.g. a MitoHiFi dependency misbehaving on this HPC) -- see
     # mitohifi_assembly.wdl's SkipMitoAssembly for what stands in when it is off.
     Boolean assemble_mitogenome = true
-    # Whether to derive hifiasm's --hom-cov from the trimmed read statistics instead of
-    # letting hifiasm infer it from the k-mer histogram. Off by default: hifiasm's own
+    # Whether to override hifiasm's --hom-cov inference (from its k-mer histogram) with a
+    # value derived from the trimmed read statistics instead. Off by default: hifiasm's own
     # inference is normally reliable, and --hom-cov changes how aggressively duplicate
     # haplotigs are purged, so overriding it with a cruder estimate makes the assembly
     # worse. Turn it on when hifiasm's inference is known to be wrong for the sample.
-    Boolean estimate_hom_cov = false
-    # The two knobs of that estimate, both ignored unless estimate_hom_cov is set.
+    Boolean override_hom_cov = false
+    # The two knobs of that estimate, both ignored unless override_hom_cov is set.
     # EstimateHomCoverage requires them and this workflow forwards them, so these are the
     # only declarations of their defaults.
     #
@@ -111,17 +110,11 @@ workflow HifiAssembly {
     File chrY_no_par_yak
     File chrX_no_par_yak
     File par_yak
-    # Whether to put the assembled mitogenome back into hap2 as chrM. On by default: an
-    # assembly with no mtDNA at all is incomplete, and mito_contig_removal.wdl's reason for
-    # keeping short mitochondrial fragments -- that a leftover fragment is redundancy --
-    # only holds while the correct mitogenome is present. Turn it off only when strictly
-    # mitochondria-free nuclear haplotypes are what is wanted.
-    Boolean add_mito_to_hap2 = true
     # Whether to rename the final contigs into PanSN-spec form, sample#haplotype#contig. On
     # by default, since that is what pangenome tooling expects to read sample and haplotype
     # out of. Turn it off to keep hifiasm's bare names, e.g. for a consumer that cannot cope
     # with "#" or that joins the delivered ID lists to the FASTA by exact match.
-    Boolean pansn_contig_names = true
+    Boolean use_pansn_contig_names = true
     File mito_reference_fasta
     File mito_reference_gb
   }
@@ -163,7 +156,7 @@ workflow HifiAssembly {
       output_prefix = sample_name + ".trimmed"
   }
 
-  if (estimate_hom_cov) {
+  if (override_hom_cov) {
     call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
       input:
         seqkit_stats = ComputeReadStats.stats,
@@ -200,8 +193,8 @@ workflow HifiAssembly {
   }
 
   # Named so that every consumer below reads the same value regardless of which of the two
-  # calls above actually ran, the same pattern hap2_with_any_mito uses further down. The
-  # "_any" suffix keeps these from colliding with the identically-named outputs below.
+  # calls above actually ran. The "_any" suffix keeps these from colliding with the
+  # identically-named outputs below.
   String mito_assembly_status_any = select_first([AssembleMito.status, SkipMito.status])
   File mito_fasta_gz_any = select_first([AssembleMito.mito_fasta_gz, SkipMito.mito_fasta_gz])
   File mito_gb_any = select_first([AssembleMito.mito_gb, SkipMito.mito_gb])
@@ -212,7 +205,7 @@ workflow HifiAssembly {
     input:
       fastq = TrimAdapters.trimmed_fastq,
       output_prefix = sample_name,
-      # Undefined unless estimate_hom_cov was set, in which case hifiasm omits --hom-cov.
+      # Undefined unless override_hom_cov was set, in which case hifiasm omits --hom-cov.
       hom_cov = EstimateHomCoverage.hom_cov,
       ont_ul_fastq = ont_ul_fastq,
       ul_cut = ul_cut
@@ -240,28 +233,19 @@ workflow HifiAssembly {
 
   # Last, so that hap2 is hap2 unconditionally: partitioning could otherwise move chrM to
   # hap1. See add_mito_to_assembly.wdl.
-  if (add_mito_to_hap2) {
-    call add_mito_wf.AddMitoToHap2 as AddMitoToHap2 {
-      input:
-        hap2_fasta_gz = PartitionSexchr.new_hap2_fasta_gz,
-        mito_fasta_gz = mito_fasta_gz_any
-    }
+  call add_mito_wf.AddMitoToHap2 as AddMitoToHap2 {
+    input:
+      hap2_fasta_gz = PartitionSexchr.new_hap2_fasta_gz,
+      mito_fasta_gz = mito_fasta_gz_any
   }
-
-  # Named so that the two places needing it -- the rename call and the fall-through in the
-  # output block -- cannot drift apart.
-  File hap2_with_any_mito = select_first([
-    AddMitoToHap2.hap2_with_mito_fasta_gz,
-    PartitionSexchr.new_hap2_fasta_gz
-  ])
 
   # Last of all, so that the haplotype field records the final assignment rather than
   # hifiasm's, and so that no "#" reaches an earlier step. See rename_contigs_pansn.wdl.
-  if (pansn_contig_names) {
+  if (use_pansn_contig_names) {
     call rename_pansn_wf.RenameContigsPanSN as RenameContigsPanSN {
       input:
         hap1_fasta_gz = PartitionSexchr.new_hap1_fasta_gz,
-        hap2_fasta_gz = hap2_with_any_mito,
+        hap2_fasta_gz = AddMitoToHap2.hap2_with_mito_fasta_gz,
         sample_name = sample_name
     }
   }
@@ -294,7 +278,7 @@ workflow HifiAssembly {
     File hap1_mito_blast_summary = RemoveMito.hap1_mito_blast_summary
     File hap2_mito_blast_summary = RemoveMito.hap2_mito_blast_summary
 
-    # Contig names are PanSN-spec (sample#1#... / sample#2#...) unless pansn_contig_names was
+    # Contig names are PanSN-spec (sample#1#... / sample#2#...) unless use_pansn_contig_names was
     # turned off. Neither the file names nor these output names change with it.
     File hap1_contigs_fasta_gz = select_first([
       RenameContigsPanSN.renamed_hap1_fasta_gz,
@@ -305,12 +289,11 @@ workflow HifiAssembly {
     # output below, not the name, is what records that.
     File hap2_contigs_fasta_gz = select_first([
       RenameContigsPanSN.renamed_hap2_fasta_gz,
-      hap2_with_any_mito
+      AddMitoToHap2.hap2_with_mito_fasta_gz
     ])
 
-    # Whether hap2 above ends in a chrM contig. Undefined when add_mito_to_hap2 was off,
-    # false when it was on but no mitogenome was assembled.
-    Boolean? chrM_in_hap2 = AddMitoToHap2.mito_added
+    # Whether hap2 above ends in a chrM contig. False when no mitogenome was assembled.
+    Boolean chrM_in_hap2 = AddMitoToHap2.mito_added
 
     # groupxy.pl's per-contig assignment table: column 2 is the contig, column 3 the
     # haplotype hifiasm put it in, column 4 the haplotype it ended up in. Delivered because

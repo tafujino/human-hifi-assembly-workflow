@@ -61,10 +61,10 @@ version 1.0
 ##     mitochondrial it looks. Deleting real nuclear sequence is a worse error than leaving
 ##     a redundant mitochondrial fragment behind. Note the word redundant: that argument
 ##     depends on the assembly containing the properly assembled mitogenome, which is what
-##     add_mito_to_assembly.wdl puts into hap2 as chrM. With add_mito_to_hap2 turned off, a
-##     leftover fragment is instead the only mtDNA in the assembly. Every contig with a
-##     BLAST hit is nevertheless listed in the per-haplotype summary TSV together with its
-##     coverage, so fragments remain visible either way.
+##     add_mito_to_assembly.wdl puts into hap2 as chrM. When assemble_mitogenome is off, or
+##     MitoHiFi assembled nothing, a leftover fragment is instead the only mtDNA in the
+##     assembly. Every contig with a BLAST hit is nevertheless listed in the per-haplotype
+##     summary TSV together with its coverage, so fragments remain visible either way.
 ##
 ## And one known miss, which is a consequence of keeping the default compatible with HPP
 ## rather than a considered trade-off:
