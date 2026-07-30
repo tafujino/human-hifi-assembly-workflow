@@ -53,7 +53,7 @@ task HifiasmAssembly {
     # rather than strictly contigs and may contain N runs of up to --scaf-gap (default 3 Mb).
     hifiasm -o ~{output_prefix} -t ~{cpu} --dual-scaf --telo-m CCCTAA \
       ~{"--hom-cov " + hom_cov} \
-      ~{if length(ont_ul_fastq) > 0 then "--ul " + sep(",", ont_ul_fastq) else ""} \
+      ~{if length(ont_ul_fastq) > 0 then "--ul " else ""}~{sep=',' ont_ul_fastq} \
       ~{"--ul-cut " + ul_cut} \
       ~{fastq} 2>&1 | tee ~{output_prefix}.hifiasm.log
 
