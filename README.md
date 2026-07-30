@@ -3,9 +3,12 @@
 WDL workflows that take one or more PacBio HiFi unaligned BAMs for a human sample and
 produce a phased, diploid de novo assembly.
 
+This repository also hosts a companion pipeline, under `evaluation/`, that evaluates an
+already-finished diploid assembly; see [Evaluation pipeline](#evaluation-pipeline) below.
+
 ## Pipeline
 
-`workflows/hifi_assembly.wdl` (workflow `HifiAssembly`) is the entry point and runs:
+`assembly/workflows/hifi_assembly.wdl` (workflow `HifiAssembly`) is the entry point and runs:
 
 1. **BAM to FASTQ** — `bam2fastq.wdl`, pbtk (`pbindex` + `bam2fastq`). Takes any number of
    BAMs, typically one per SMRT cell, and merges them into one read set
@@ -37,7 +40,7 @@ the ones that are not obvious. Start there rather than here.
 
 ## Inputs
 
-`miniwdl input_template workflows/hifi_assembly.wdl` lists the required inputs, and every
+`miniwdl input_template assembly/workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
 explain each one. Seven are worth calling out:
 
@@ -59,7 +62,7 @@ explain each one. Seven are worth calling out:
   `mito_reference_fasta` as its BLAST subject, and hap2 gets no `chrM` — the same path taken
   when the assembly fails on its own. The assembled mitogenome, when there is one, is always
   delivered both on its own and as a `chrM` contig at the end of hap2; see
-  [docs/mitochondrial.md](docs/mitochondrial.md).
+  [assembly/docs/mitochondrial.md](assembly/docs/mitochondrial.md).
 * **`override_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
   statistics and `genome_size_mb` instead. Leave it off unless hifiasm's own inference is
@@ -73,7 +76,7 @@ explain each one. Seven are worth calling out:
   distributed by the [yak](https://github.com/lh3/yak) repository, and
   **`mito_reference_fasta` / `mito_reference_gb`** — a closely related mitogenome, e.g.
   the human rCRS (`NC_012920.1`); see
-  [docs/mitochondrial.md](docs/mitochondrial.md) for how to fetch it.
+  [assembly/docs/mitochondrial.md](assembly/docs/mitochondrial.md) for how to fetch it.
   These are supplied explicitly instead of being downloaded during the run.
 
 ## Outputs
@@ -95,7 +98,7 @@ For a female sample the partitioning step is skipped, so these fall through to
 applied — and, for that reason, does *not* change when `chrM` is appended to hap2, which is
 what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 gets no `chrM` — which
 is not the same as hap1 containing no mitochondrial sequence, since removal deliberately
-keeps some. [docs/mitochondrial.md](docs/mitochondrial.md) explains why hap2, why last, and
+keeps some. [assembly/docs/mitochondrial.md](assembly/docs/mitochondrial.md) explains why hap2, why last, and
 what removal leaves behind.
 
 hifiasm runs with `--dual-scaf`, which scaffolds each haplotype using the other, so these
@@ -179,7 +182,7 @@ The `hap1`/`hap2` labels here refer to hifiasm's haplotypes, since removal happe
 chrX/chrY partitioning — which for a male sample are not necessarily the labels of the final
 assembly. `sexchr_grouped` maps between the two. Removal is whole-contig, and contigs are kept in several
 circumstances by design — see
-[docs/mitochondrial.md](docs/mitochondrial.md), which the summary TSVs are
+[assembly/docs/mitochondrial.md](assembly/docs/mitochondrial.md), which the summary TSVs are
 there to make auditable.
 
 ### Reads and logs
@@ -201,30 +204,80 @@ assembly needs revisiting.
 
 ## Further documentation
 
-* [docs/mitochondrial.md](docs/mitochondrial.md) — how to fetch the
+* [assembly/docs/mitochondrial.md](assembly/docs/mitochondrial.md) — how to fetch the
   mitochondrial reference, and what removal does and does not remove
-* [docs/container-images.md](docs/container-images.md) — how images are pinned, built and
+* [assembly/docs/container-images.md](assembly/docs/container-images.md) — how images are pinned, built and
   published
-* [docs/validation.md](docs/validation.md) — what is checked, locally and in CI
+* [assembly/docs/validation.md](assembly/docs/validation.md) — what is checked, locally and in CI
+
+## Evaluation pipeline
+
+`evaluation/workflows/assembly_evaluation.wdl` (workflow `AssemblyEvaluation`) evaluates an
+already-finished diploid (hap1/hap2) assembly. It runs three evaluations, per haplotype
+throughout:
+
+1. **Basic contiguity/composition stats** — total length, N50/NG50, L50/LG50, GC%, computed
+   per haplotype and once more for hap1+hap2 combined (`assembly_stats.wdl`).
+2. **Misassembly detection** — HMM-Flagger, run once against the required PacBio HiFi reads
+   and, if ONT reads are also given, once more against those. Reuses
+   [mobinasri/flagger](https://github.com/mobinasri/flagger)'s own end-to-end WDL rather than
+   reimplementing read mapping and the HMM.
+3. **Gene completeness/duplication** — `asmgene.wdl`. Maps a reference cDNA set to CHM13 and
+   to each haplotype separately with minimap2, then evaluates with paftools.js `asmgene`.
+   Haplotypes are never concatenated for this step, since a gene present on both would
+   otherwise be miscounted as a false duplication.
+
+All three feed one final aggregate summary, `<sample>.assembly_evaluation_summary.tsv` /
+`.json`.
+
+### Setup
+
+`evaluation/workflows/imports/flagger` and `evaluation/workflows/imports/calN50` are git
+submodules — the official HMM-Flagger WDL and [lh3/calN50](https://github.com/lh3/calN50),
+both vendored unedited and pinned to a specific commit — and are empty right after a plain
+clone. Fetch them first:
+
+```sh
+git submodule update --init --recursive
+```
+
+Skipping this is the most common way to see `assembly_evaluation.wdl`'s imports fail to
+resolve.
+
+Each `.wdl` file under `evaluation/workflows/` carries a header comment explaining its
+design decisions, the same way `assembly/workflows/` does.
 
 ## Licensing
 
 This repository is MIT (see `LICENSE`) **with one exception**:
 
-* **`docker/mito-blast-filter/` is GPL-3.0-or-later.** Its `mito_blast_filter` script
+* **`assembly/docker/mito-blast-filter/` is GPL-3.0-or-later.** Its `mito_blast_filter` script
   re-implements a BLAST filtering step whose parameter choices come from MitoHiFi's
   `parse_blast.py` and the Human Pangenome Project's re-tuning of it, both
   GPL-3.0-or-later. No code was copied and the central computation differs, but the
   implementation is not clean-room, so the component is kept separate, licensed under
   GPL-3.0-or-later, and invoked as an external tool. That keeps the WDL that calls it
-  unambiguously MIT. `docker/mito-blast-filter/NOTICE` explains this in full.
+  unambiguously MIT. `assembly/docker/mito-blast-filter/NOTICE` explains this in full.
 
 The published images redistribute third-party software under its own terms:
 
 * `mitohifi` contains MitoHiFi, three of whose files are GPL-3.0-or-later, and its
   `Dockerfile` modifies them. The required statement of modifications is in
-  `docker/mitohifi/NOTICE`, which is copied into the image; the corresponding source
+  `assembly/docker/mitohifi/NOTICE`, which is copied into the image; the corresponding source
   is present at `/opt/MitoHiFi`. The base image additionally bundles MitoFinder
   (GPL-3.0-or-later), cd-hit (GPL-2.0), hifiasm (MIT) and minimap2 (MIT).
 * `yak` contains yak (MIT); its licence text is kept at
   `/usr/local/share/licenses/yak/` inside the image.
+
+`evaluation/` vendors two third-party WDL/script projects as git submodules rather than
+building them into a published image, so no NOTICE is required for either:
+
+* `evaluation/workflows/imports/flagger` —
+  [mobinasri/flagger](https://github.com/mobinasri/flagger) (MIT), pinned to `v1.2.0`, used
+  unedited.
+* `evaluation/workflows/imports/calN50` — [lh3/calN50](https://github.com/lh3/calN50), pinned
+  to a specific commit, used unedited. Upstream ships no LICENSE file.
+
+Both are fetched directly from their own upstream by `git submodule update --init --recursive`
+(see [Evaluation pipeline](#evaluation-pipeline)) rather than redistributed by this
+repository.

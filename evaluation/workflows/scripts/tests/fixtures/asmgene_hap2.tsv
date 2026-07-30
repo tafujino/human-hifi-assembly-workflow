@@ -1,0 +1,4 @@
+label	metric	ref	asm
+HG002.hap2	full_sgl	18000	17920
+HG002.hap2	full_dup	5	7
+HG002.hap2	frag	10	9

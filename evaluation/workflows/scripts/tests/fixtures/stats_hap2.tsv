@@ -1,0 +1,2 @@
+label	total_length_bp	num_contigs	longest_contig_bp	N50_bp	L50	NG50_bp	LG50	auN	GC_percent	genome_size_for_NG50_bp
+HG002.hap2	2950000	11	480000	290000	4	270000	5	305000.2	40.2	3100000000

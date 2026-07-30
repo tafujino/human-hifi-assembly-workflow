@@ -1,4 +1,9 @@
-# Shared registry helpers, sourced by check_images.sh and build_and_push.sh.
+# Shared registry helpers, sourced by assembly/docker/check_images.sh,
+# assembly/docker/build_and_push.sh and evaluation/docker/check_images.sh.
+#
+# Lives at the top level (rather than under assembly/docker/) because it is generic
+# registry HTTP logic with no assembly-specific assumptions, used identically by both
+# projects.
 #
 # Only curl is required: the registry HTTP API is queried directly rather than going
 # through the Docker CLI, which needs a running daemon and (before ~23.0) cannot read

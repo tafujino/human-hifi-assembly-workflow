@@ -4,7 +4,8 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - 'docker/**'
+      - 'assembly/docker/**'
+      - 'scripts/registry_lib.sh'
   workflow_dispatch: {}
 
 permissions:
@@ -20,7 +21,7 @@ jobs:
 
       - id: list
         run: |
-          images=$(for dir in docker/*/; do
+          images=$(for dir in assembly/docker/*/; do
             name="$(basename "$dir")"
             if [[ -f "$dir/Dockerfile" ]]; then
               echo "$name"
@@ -50,4 +51,4 @@ jobs:
         env:
           REGISTRY: quay.io/tafujino
           LATEST: ${{ github.ref == 'refs/heads/main' && '--latest' || '' }}
-        run: ./docker/build_and_push.sh --push ${LATEST} "${{ matrix.image }}"
+        run: ./assembly/docker/build_and_push.sh --push ${LATEST} "${{ matrix.image }}"

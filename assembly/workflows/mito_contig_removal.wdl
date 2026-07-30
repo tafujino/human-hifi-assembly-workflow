@@ -35,7 +35,7 @@ version 1.0
 ## is found, i.e. it fails on exactly the ideal outcome of a mitochondria-free assembly.
 ##
 ## Instead each haplotype is BLASTed directly and the hits are classified by the
-## mito_blast_filter tool, which lives in its own container (docker/mito-blast-filter/).
+## mito_blast_filter tool, which lives in its own container (assembly/docker/mito-blast-filter/).
 ## The criteria follow the Human Pangenome Project's QC/wdl/tasks/findMitoContigs.wdl,
 ## itself a re-tuning of MitoHiFi's parse_blast.py; a contig is removed when all three
 ## hold:
@@ -47,7 +47,7 @@ version 1.0
 ## That tool is kept as a separately licensed component rather than inlined here: it was
 ## written after reading both upstreams and adopts their parameter choices, so it is not a
 ## clean-room implementation, and both upstreams are GPL-3.0-or-later. Isolating it keeps
-## this workflow unambiguously MIT. See docker/mito-blast-filter/NOTICE for the full
+## this workflow unambiguously MIT. See assembly/docker/mito-blast-filter/NOTICE for the full
 ## reasoning and for what was adopted versus what differs, and its tests/ directory for
 ## the behaviour asserted by CI.
 ##
@@ -77,8 +77,8 @@ version 1.0
 ##     better -- a 100 kb nuclear contig carrying a 5 kb NUMT is excluded at 5% coverage,
 ##     not by its length -- so for this workflow the ceiling mostly just loses recall. It
 ##     is retained at HPP's value for comparability; raise max_subject_multiple to remove
-##     such contigs. See tests/unit_length.* in docker/mito-blast-filter/, which pins this
-##     behaviour, and docs/mitochondrial.md for the reasoning.
+##     such contigs. See tests/unit_length.* in assembly/docker/mito-blast-filter/, which pins this
+##     behaviour, and assembly/docs/mitochondrial.md for the reasoning.
 ##
 ## covered_bp is computed by merging overlapping query intervals, which is where
 ## mito_blast_filter departs from both upstreams: they sum each HSP's share of the contig
@@ -161,7 +161,7 @@ task IdentifyMitoContigs {
     max_subject_multiple: "Upper length bound: a contig longer than this many times the subject is kept. Retained at HPP's value; see the known miss described at the top of this file."
     min_contig_perc: "Lower length bound as a percentage of the subject length. Contigs below it are kept however mitochondrial they look."
     min_coverage_perc: "Minimum percentage of the contig covered by merged BLAST intervals for it to be removed."
-    docker: "Image carrying BLAST and the mito_blast_filter script. Note that docker/mito-blast-filter/ is GPL-3.0-or-later, unlike the rest of this repository."
+    docker: "Image carrying BLAST and the mito_blast_filter script. Note that assembly/docker/mito-blast-filter/ is GPL-3.0-or-later, unlike the rest of this repository."
   }
 
   input {
@@ -180,7 +180,7 @@ task IdentifyMitoContigs {
     Float min_contig_perc = 80.0
     Float min_coverage_perc = 70.0
 
-    # Image built from docker/mito-blast-filter/Dockerfile (the BLAST biocontainer plus
+    # Image built from assembly/docker/mito-blast-filter/Dockerfile (the BLAST biocontainer plus
     # the mito_blast_filter script), published by
     # .github/workflows/build-docker-images.yml.
     String docker = "quay.io/tafujino/mito-blast-filter:0.2"

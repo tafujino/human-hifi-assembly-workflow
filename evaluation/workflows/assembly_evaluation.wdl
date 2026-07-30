@@ -1,0 +1,246 @@
+version 1.0
+
+import "assembly_stats.wdl" as stats_t
+import "asmgene.wdl" as asmgene_t
+import "summary.wdl" as summary_t
+import "imports/flagger/wdls/workflows/hmm_flagger_end_to_end_with_mapping.wdl" as flagger_t
+
+## Diploid assembly evaluation: basic contiguity stats, HMM-Flagger misassembly detection
+## (HiFi always, ONT additionally if ont_read_files is non-empty), and asmgene gene
+## completeness/duplication, evaluated per haplotype throughout. See internal-docs/design-overview.md for
+## the full design rationale (why hap1/hap2 are never concatenated for asmgene, why
+## every task's memory floor is 8 GB, etc).
+
+workflow AssemblyEvaluation {
+  meta {
+    description: "Evaluates a diploid (hap1/hap2) human genome assembly: basic contiguity stats, HMM-Flagger misassembly detection (HiFi always, ONT if given), and asmgene gene completeness/duplication, per haplotype throughout."
+  }
+
+  parameter_meta {
+    sample_name: "Used as the output file prefix throughout."
+    hap1_assembly_fasta: "Hap1 assembly FASTA (plain or gzipped) to evaluate."
+    hap2_assembly_fasta: "Hap2 assembly FASTA (plain or gzipped) to evaluate."
+    hifi_read_files: "PacBio HiFi unaligned reads (fastq/fq(.gz)/bam/cram). Required: mapping happens inside the vendored HMM-Flagger end-to-end-with-mapping workflow."
+    ont_read_files: "ONT unaligned reads. Leave empty ([]) to skip ONT entirely; when non-empty, a second, independent HMM-Flagger run is added for ONT using ont_preset."
+    ont_preset: "HMM-Flagger preset for the ONT run, \"ont-r9\" or \"ont-r10\". Ignored unless ont_read_files is non-empty."
+    reference_cdna_fasta: "Ensembl GRCh38 cDNA/transcript FASTA, mapped to both projection_reference_fasta and each haplotype for asmgene."
+    projection_reference_fasta: "CHM13v2.0 FASTA, used both as the flagger annotation-projection reference and as the asmgene reference-side mapping target."
+    estimated_haploid_genome_size: "Estimated per-haplotype genome size for NG50 (default: human haploid, ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x this value."
+    asmgene_min_identity: "Minimum identity for asmgene gene-completeness calls."
+    bias_annotations_bed_array_to_be_projected: "CHM13 bias-annotation BEDs to project onto each haplotype (flagger). Optional but recommended."
+    cntr_bed_to_be_projected: "CHM13 centromere BED to project onto each haplotype (flagger). Optional but recommended."
+    sd_bed_to_be_projected: "CHM13 segmental-duplication BED to project onto each haplotype (flagger). Optional but recommended."
+    sex_bed_to_be_projected: "CHM13 sex-chromosome BED to project onto each haplotype (flagger). Optional but recommended."
+    annotations_bed_array_to_be_projected: "CHM13 stratification BEDs to project onto each haplotype (flagger). Optional but recommended."
+    hifi_alpha_tsv: "Override for HMM-Flagger's per-preset alpha table, HiFi run. If omitted, flagger picks its own preset-based default (see flagger v1.2.0 README)."
+    ont_alpha_tsv: "Override for HMM-Flagger's per-preset alpha table, ONT run. If omitted, flagger picks its own preset-based default."
+    cal_n50_script: "Vendored copy of lh3/calN50's calN50.js (workflows/imports/calN50)."
+    summarize_script: "Vendored summarize_evaluation.py (workflows/scripts)."
+    flagger_version: "HMM-Flagger version, used only to label output suffixes; the actual version run is whatever is vendored under workflows/imports/flagger."
+    flagger_aligner_memory_gb: "Pass-through for flagger's own read-mapping memory knob (alignerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
+    flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
+  }
+
+  input {
+    String sample_name
+
+    File hap1_assembly_fasta
+    File hap2_assembly_fasta
+
+    Array[File] hifi_read_files
+
+    Array[File] ont_read_files = []
+    String ont_preset = "ont-r10"
+
+    File reference_cdna_fasta
+
+    File projection_reference_fasta
+
+    # NB: written as 3100 * 1000000 rather than the raw literal 3100000000 --
+    # some WDL/Cromwell parser versions fail to parse an Int default literal
+    # above 2^31-1 (Java/Scala Int overflow); the multiplication expression
+    # sidesteps that bug and evaluates to the same value. The same versions
+    # also reject a >2^31-1 JSON number when overriding this input via
+    # inputs.json ("No coercion defined ... to 'Int'") -- if a non-human
+    # genome size ever needs to be passed in, editing this default directly
+    # (keeping the A * B form) is the safe option, not an inputs.json override.
+    Int estimated_haploid_genome_size = 3100 * 1000000
+
+    Float asmgene_min_identity = 0.97
+
+    # --- CHM13 annotation projection (flagger; optional but recommended) ---
+    Array[File] bias_annotations_bed_array_to_be_projected = []
+    File? cntr_bed_to_be_projected
+    File? sd_bed_to_be_projected
+    File? sex_bed_to_be_projected
+    Array[File] annotations_bed_array_to_be_projected = []
+
+    File? hifi_alpha_tsv
+    File? ont_alpha_tsv
+
+    File cal_n50_script
+    File summarize_script
+
+    String flagger_version = "v1.2.0"
+
+    Int flagger_aligner_memory_gb = 48
+    Int flagger_hmm_memory_gb = 32
+  }
+
+  Boolean has_ont_reads = length(ont_read_files) > 0
+
+  ### 1. Basic contiguity/composition stats: hap1, hap2, combined
+  call stats_t.CalculateAssemblyStats as ComputeStatsHap1 {
+    input:
+      assembly_fastas = [hap1_assembly_fasta],
+      label = sample_name + ".hap1",
+      cal_n50_script = cal_n50_script,
+      genome_size_for_ng50 = estimated_haploid_genome_size,
+  }
+  call stats_t.CalculateAssemblyStats as ComputeStatsHap2 {
+    input:
+      assembly_fastas = [hap2_assembly_fasta],
+      label = sample_name + ".hap2",
+      cal_n50_script = cal_n50_script,
+      genome_size_for_ng50 = estimated_haploid_genome_size,
+  }
+  call stats_t.CalculateAssemblyStats as ComputeStatsCombined {
+    input:
+      assembly_fastas = [hap1_assembly_fasta, hap2_assembly_fasta],
+      label = sample_name + ".combined",
+      cal_n50_script = cal_n50_script,
+      genome_size_for_ng50 = estimated_haploid_genome_size * 2,
+      disk_gb = ceil(size(hap1_assembly_fasta, "GB") + size(hap2_assembly_fasta, "GB")) * 3 + 50,
+  }
+
+  ### 2. asmgene: single reference-side mapping, then per-hap mapping + evaluation
+  call asmgene_t.MapCdnaSplice as MapCdnaToReference {
+    input:
+      target_fasta = projection_reference_fasta,
+      cdna_fasta = reference_cdna_fasta,
+      label = "ref_cdna_to_chm13",
+      disk_gb = ceil(size(projection_reference_fasta, "GB")) * 4 + 50,
+  }
+  call asmgene_t.MapCdnaSplice as MapCdnaToHap1 {
+    input:
+      target_fasta = hap1_assembly_fasta,
+      cdna_fasta = reference_cdna_fasta,
+      label = sample_name + ".hap1.cdna",
+      disk_gb = ceil(size(hap1_assembly_fasta, "GB")) * 4 + 50,
+  }
+  call asmgene_t.MapCdnaSplice as MapCdnaToHap2 {
+    input:
+      target_fasta = hap2_assembly_fasta,
+      cdna_fasta = reference_cdna_fasta,
+      label = sample_name + ".hap2.cdna",
+      disk_gb = ceil(size(hap2_assembly_fasta, "GB")) * 4 + 50,
+  }
+  # Evaluated per haplotype (never hap1+hap2 concatenated): a gene present on both
+  # haplotypes is expected biology, not duplication, and would otherwise be
+  # miscounted as full_dup. See internal-docs/design-overview.md section 3.3.
+  call asmgene_t.AsmgeneEvaluate as EvaluateAsmgeneHap1 {
+    input:
+      ref_paf = MapCdnaToReference.paf,
+      asm_paf = MapCdnaToHap1.paf,
+      label = sample_name + ".hap1",
+      min_identity = asmgene_min_identity,
+  }
+  call asmgene_t.AsmgeneEvaluate as EvaluateAsmgeneHap2 {
+    input:
+      ref_paf = MapCdnaToReference.paf,
+      asm_paf = MapCdnaToHap2.paf,
+      label = sample_name + ".hap2",
+      min_identity = asmgene_min_identity,
+  }
+
+  ### 3. HMM-Flagger: HiFi run (always)
+  call flagger_t.HMMFlaggerEndToEndWithMapping as RunFlaggerHifi {
+    input:
+      sampleName = sample_name,
+      suffixForMapping = "hifi_minimap2",
+      suffixForFlagger = "hifi_flagger_" + flagger_version,
+      hap1AssemblyFasta = hap1_assembly_fasta,
+      hap2AssemblyFasta = hap2_assembly_fasta,
+      readFiles = hifi_read_files,
+      presetForMapping = "map-hifi",
+      presetForFlagger = "hifi",
+      alphaTsv = hifi_alpha_tsv,
+      alignerMemSize = flagger_aligner_memory_gb,
+      flaggerMemSize = flagger_hmm_memory_gb,
+      projectionReferenceFasta = projection_reference_fasta,
+      biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
+      cntrBedToBeProjected = cntr_bed_to_be_projected,
+      SDBedToBeProjected = sd_bed_to_be_projected,
+      sexBedToBeProjected = sex_bed_to_be_projected,
+      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+  }
+
+  ### 4. HMM-Flagger: ONT run (only if ont_read_files was supplied)
+  if (has_ont_reads) {
+    call flagger_t.HMMFlaggerEndToEndWithMapping as RunFlaggerOnt {
+      input:
+        sampleName = sample_name,
+        suffixForMapping = "ont_minimap2",
+        suffixForFlagger = "ont_flagger_" + flagger_version,
+        hap1AssemblyFasta = hap1_assembly_fasta,
+        hap2AssemblyFasta = hap2_assembly_fasta,
+        readFiles = ont_read_files,
+        presetForMapping = "map-ont",
+        presetForFlagger = ont_preset,
+        alphaTsv = ont_alpha_tsv,
+        alignerMemSize = flagger_aligner_memory_gb,
+        flaggerMemSize = flagger_hmm_memory_gb,
+        projectionReferenceFasta = projection_reference_fasta,
+        biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
+        cntrBedToBeProjected = cntr_bed_to_be_projected,
+        SDBedToBeProjected = sd_bed_to_be_projected,
+        sexBedToBeProjected = sex_bed_to_be_projected,
+        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+    }
+  }
+
+  ### 5. Aggregate everything into one summary TSV/JSON
+  call summary_t.SummarizeAssemblyEvaluation as SummarizeAssemblyEvaluation {
+    input:
+      summarize_script = summarize_script,
+      sample_name = sample_name,
+      stats_hap1_tsv = ComputeStatsHap1.stats_tsv,
+      stats_hap2_tsv = ComputeStatsHap2.stats_tsv,
+      stats_combined_tsv = ComputeStatsCombined.stats_tsv,
+      asmgene_hap1_summary_tsv = EvaluateAsmgeneHap1.asmgene_summary_tsv,
+      asmgene_hap2_summary_tsv = EvaluateAsmgeneHap2.asmgene_summary_tsv,
+      flagger_hifi_final_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1,
+      flagger_hifi_final_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2,
+      flagger_ont_final_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1,
+      flagger_ont_final_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2,
+  }
+
+  output {
+    # Basic stats
+    File stats_hap1_tsv = ComputeStatsHap1.stats_tsv
+    File stats_hap2_tsv = ComputeStatsHap2.stats_tsv
+    File stats_combined_tsv = ComputeStatsCombined.stats_tsv
+
+    # asmgene
+    File asmgene_hap1_raw_tsv = EvaluateAsmgeneHap1.asmgene_raw_tsv
+    File asmgene_hap2_raw_tsv = EvaluateAsmgeneHap2.asmgene_raw_tsv
+    File asmgene_hap1_summary_tsv = EvaluateAsmgeneHap1.asmgene_summary_tsv
+    File asmgene_hap2_summary_tsv = EvaluateAsmgeneHap2.asmgene_summary_tsv
+
+    # HMM-Flagger (HiFi)
+    File flagger_hifi_final_prediction_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1
+    File flagger_hifi_final_prediction_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2
+    File flagger_hifi_full_stats_tsv = RunFlaggerHifi.fullStatsTsv
+    File flagger_hifi_misc_files_tar_gz = RunFlaggerHifi.miscFlaggerFilesTarGz
+
+    # HMM-Flagger (ONT, present only when ont_read_files was non-empty)
+    File? flagger_ont_final_prediction_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1
+    File? flagger_ont_final_prediction_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2
+    File? flagger_ont_full_stats_tsv = RunFlaggerOnt.fullStatsTsv
+    File? flagger_ont_misc_files_tar_gz = RunFlaggerOnt.miscFlaggerFilesTarGz
+
+    # Final aggregate summary
+    File assembly_evaluation_summary_tsv = SummarizeAssemblyEvaluation.summary_tsv
+    File assembly_evaluation_summary_json = SummarizeAssemblyEvaluation.summary_json
+  }
+}

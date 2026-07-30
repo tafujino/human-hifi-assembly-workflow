@@ -1,29 +1,29 @@
 # Validation
 
 ```sh
-miniwdl check workflows/*.wdl                       # syntax, types, imports
-docker/check_images.sh                              # pinned images resolve
-docker/mito-blast-filter/test.sh <image>            # filter test suite
+miniwdl check assembly/workflows/*.wdl                       # syntax, types, imports
+assembly/docker/check_images.sh                              # pinned images resolve
+assembly/docker/mito-blast-filter/test.sh <image>            # filter test suite
 ```
 
 ## In CI
 
 `.github/workflows/validate-wdl.yml` runs the first two on pushes and pull requests that
-touch `workflows/`, as two independent jobs:
+touch `assembly/workflows/`, as two independent jobs:
 
 * **miniwdl check** — syntax, types and imports across every WDL document. GitHub's runners
   have shellcheck installed, so miniwdl additionally lints each task's command block.
   Lint findings are reported but do not fail the job; only real errors do.
-* **Pinned container images exist** — `docker/check_images.sh`. An image built from this
+* **Pinned container images exist** — `assembly/docker/check_images.sh`. An image built from this
   repository that has not been published yet is reported as `pending` rather than as a
   failure, since the build workflow publishes it from the same commit.
 
 `.github/workflows/build-docker-images.yml` runs the third: `build_and_push.sh` invokes
-`docker/<name>/test.sh` after building and before pushing.
+`assembly/docker/<name>/test.sh` after building and before pushing.
 
 ## The filter test suite
 
-`docker/mito-blast-filter/tests/` covers `mito_blast_filter`, the tool that decides which
+`assembly/docker/mito-blast-filter/tests/` covers `mito_blast_filter`, the tool that decides which
 contigs are mitochondrial. It is split by what each part can assert reliably:
 
 * **Unit tests** use hand-written BLAST output, so the expected summary TSV is compared byte
@@ -40,6 +40,6 @@ contigs are mitochondrial. It is split by what each part can assert reliably:
 Run them against a built image:
 
 ```sh
-docker/build_and_push.sh mito-blast-filter          # builds, then runs the suite
-docker/mito-blast-filter/test.sh <image>            # or against an existing image
+assembly/docker/build_and_push.sh mito-blast-filter          # builds, then runs the suite
+assembly/docker/mito-blast-filter/test.sh <image>            # or against an existing image
 ```

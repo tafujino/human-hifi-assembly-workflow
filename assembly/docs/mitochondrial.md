@@ -96,7 +96,7 @@ as collateral; raising `min_coverage_perc` makes that rarer.
 
 ### Where the details are
 
-`workflows/mito_contig_removal.wdl` documents the criteria and their provenance at the top
-of the file. `docker/mito-blast-filter/NOTICE` covers where the parameter choices came from
+`assembly/workflows/mito_contig_removal.wdl` documents the criteria and their provenance at the top
+of the file. `assembly/docker/mito-blast-filter/NOTICE` covers where the parameter choices came from
 and how the implementation differs from its upstreams, and that directory's `tests/` pin
 the behaviour described here — including the concatemer miss.

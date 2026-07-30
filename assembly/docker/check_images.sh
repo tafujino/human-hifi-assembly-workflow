@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verifies that every container image pinned in workflows/*.wdl actually exists
+# Verifies that every container image pinned in assembly/workflows/*.wdl actually exists
 # in its registry.
 #
 # A wrong build-hash suffix (e.g. "cutadapt:4.9--py310h4b81fae_0", where that hash
@@ -10,7 +10,7 @@
 # separate manifest, so it cannot drift out of sync with what the workflow runs.
 #
 # For images built from this repository the tag is additionally checked against
-# docker/<name>/VERSION, and not yet being published is reported as "pending"
+# assembly/docker/<name>/VERSION, and not yet being published is reported as "pending"
 # rather than as a failure.
 #
 # Only curl is required: the registry HTTP API is queried directly rather than
@@ -18,15 +18,15 @@
 # cannot read OCI image indexes.
 #
 # Usage:
-#   docker/check_images.sh          # check that every pinned image is resolvable
-#   docker/check_images.sh --list   # just print the pinned images, one per line
+#   assembly/docker/check_images.sh          # check that every pinned image is resolvable
+#   assembly/docker/check_images.sh --list   # just print the pinned images, one per line
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck source=docker/registry_lib.sh
-source "$REPO_ROOT/docker/registry_lib.sh"
+# shellcheck source=scripts/registry_lib.sh
+source "$REPO_ROOT/../scripts/registry_lib.sh"
 
 images="$(
   grep -rhoE 'String docker = "[^"]+"' "$REPO_ROOT/workflows" |
@@ -36,7 +36,7 @@ images="$(
 
 if [[ -z "$images" ]]; then
   # shellcheck disable=SC2016  # the backticks are literal text in the message
-  echo 'error: no `String docker = "..."` declarations found under workflows/' >&2
+  echo 'error: no `String docker = "..."` declarations found under assembly/workflows/' >&2
   exit 1
 fi
 
@@ -50,7 +50,7 @@ while IFS= read -r image; do
   IFS=$'\n' read -r -d '' registry repo ref < <(split_image "$image" && printf '\0') || true
 
   # Images built from this repository are a special case. Their tag must agree with
-  # docker/<name>/VERSION -- a mismatch there is a real error that nothing else would
+  # assembly/docker/<name>/VERSION -- a mismatch there is a real error that nothing else would
   # catch -- but they legitimately do not exist in the registry yet on the commit that
   # introduces or bumps them, since the build workflow publishes them from that same
   # commit. So absence is only a warning for those.
@@ -67,7 +67,7 @@ while IFS= read -r image; do
   fi
 
   if [[ -n "$local_version" && "$ref" != "$local_version" ]]; then
-    echo "MISMATCH $image (docker/$local_name/VERSION says $local_version)" >&2
+    echo "MISMATCH $image (assembly/docker/$local_name/VERSION says $local_version)" >&2
     status=1
     continue
   fi
@@ -75,7 +75,7 @@ while IFS= read -r image; do
   if image_exists "$registry" "$repo" "$ref"; then
     echo "ok       $image"
   elif [[ -n "$local_version" ]]; then
-    echo "pending  $image (built from docker/$local_name/, not published yet)"
+    echo "pending  $image (built from assembly/docker/$local_name/, not published yet)"
   else
     echo "MISSING  $image" >&2
     status=1

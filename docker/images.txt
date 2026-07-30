@@ -1,9 +1,0 @@
-quay.io/tafujino/mito-blast-filter:0.2
-quay.io/tafujino/mitohifi:3.2.3
-quay.io/tafujino/yak:0.1
-quay.io/biocontainers/cutadapt@sha256:d93aa80a1a9458686b80617f904b6c516cd5cd0c5ea9be69669e68d5ca47e1f2
-quay.io/biocontainers/hifiasm@sha256:5dc4c88cabceb56445f44e785dae252e13fb8131e9bde54028bfb4102a3f424d
-quay.io/biocontainers/pbtk@sha256:ab2d8dcf1a80e2d7595ab8799c37037766db6fb35d6744440b4643f27749e0ab
-quay.io/biocontainers/seqkit@sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a
-quay.io/biocontainers/seqtk@sha256:adc42bdf55fb21db1c3d395ef852558b5ccc7a23d64985b89119c7a55af99759
-ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90

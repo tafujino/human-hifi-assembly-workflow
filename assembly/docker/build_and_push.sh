@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds (and optionally pushes) the custom Docker images under docker/<name>/.
+# Builds (and optionally pushes) the custom Docker images under assembly/docker/<name>/.
 #
-# Each docker/<name>/ directory must contain a Dockerfile and a VERSION file holding the
+# Each assembly/docker/<name>/ directory must contain a Dockerfile and a VERSION file holding the
 # tag to publish (e.g. "0.1"). Images are built as <REGISTRY>/<name>:<version> and, for
 # local convenience, also tagged :latest.
 #
@@ -9,7 +9,7 @@
 #
 #   * A version tag that already exists in the registry is never overwritten. The WDL
 #     pins these tags, so republishing one would silently change what an existing
-#     workflow runs. Bump docker/<name>/VERSION to publish a changed image; the push is
+#     workflow runs. Bump assembly/docker/<name>/VERSION to publish a changed image; the push is
 #     skipped with a warning otherwise. There is deliberately no override flag.
 #   * :latest is only pushed with --latest, which CI passes on the main branch alone, so
 #     that a build from a topic branch cannot move it. It is also only pushed when the
@@ -17,13 +17,13 @@
 #     content that some version tag also names.
 #
 # Usage:
-#   docker/build_and_push.sh [--push] [--latest] [--dry-run] [image-name ...]
+#   assembly/docker/build_and_push.sh [--push] [--latest] [--dry-run] [image-name ...]
 #
 #   --push      push the version tag (subject to the rule above)
 #   --latest    additionally push :latest; only meaningful together with --push
 #   --dry-run   report what would be built and pushed, without doing either
 #
-# With no image names given, every docker/<name>/ directory containing a Dockerfile is
+# With no image names given, every assembly/docker/<name>/ directory containing a Dockerfile is
 # built. REGISTRY defaults to quay.io/tafujino; override it via the REGISTRY environment
 # variable to publish under a different namespace (e.g. a fork pushing to its own Quay.io
 # account for testing).
@@ -33,8 +33,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REGISTRY="${REGISTRY:-quay.io/tafujino}"
 
-# shellcheck source=docker/registry_lib.sh
-source "$SCRIPT_DIR/registry_lib.sh"
+# shellcheck source=scripts/registry_lib.sh
+source "$SCRIPT_DIR/../../scripts/registry_lib.sh"
 
 push=false
 push_latest=false

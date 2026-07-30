@@ -4,13 +4,19 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - 'workflows/**'
-      - 'docker/check_images.sh'
+      - 'assembly/workflows/**'
+      - 'assembly/docker/check_images.sh'
+      - 'evaluation/workflows/**'
+      - 'evaluation/docker/check_images.sh'
+      - 'scripts/registry_lib.sh'
       - '.github/workflows/validate-wdl.yml'
   pull_request:
     paths:
-      - 'workflows/**'
-      - 'docker/check_images.sh'
+      - 'assembly/workflows/**'
+      - 'assembly/docker/check_images.sh'
+      - 'evaluation/workflows/**'
+      - 'evaluation/docker/check_images.sh'
+      - 'scripts/registry_lib.sh'
       - '.github/workflows/validate-wdl.yml'
   workflow_dispatch: {}
 
@@ -18,8 +24,8 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    name: miniwdl check
+  check-assembly:
+    name: miniwdl check (assembly)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,17 +42,64 @@ jobs:
       # job; only real errors (type errors, broken imports, ...) do.
       - name: Check every WDL document
         run: |
-          for f in workflows/*.wdl; do
+          for f in assembly/workflows/*.wdl; do
             echo "::group::$f"
             miniwdl check "$f"
             echo "::endgroup::"
           done
 
-  images:
-    name: Pinned container images exist
+  check-evaluation:
+    name: miniwdl check (evaluation)
+    runs-on: ubuntu-latest
+    steps:
+      # recursive: evaluation/workflows/assembly_evaluation.wdl imports the vendored
+      # flagger submodule, and miniwdl check needs it actually checked out to resolve.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install miniwdl
+        run: pip install --disable-pip-version-check miniwdl
+
+      - name: Check every WDL document
+        run: |
+          for f in evaluation/workflows/*.wdl; do
+            echo "::group::$f"
+            miniwdl check "$f"
+            echo "::endgroup::"
+          done
+
+  images-assembly:
+    name: Pinned container images exist (assembly)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Verify every pinned container image is resolvable
-        run: ./docker/check_images.sh
+        run: ./assembly/docker/check_images.sh
+
+  images-evaluation:
+    name: Pinned container images exist (evaluation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify every pinned container image is resolvable
+        run: ./evaluation/docker/check_images.sh
+
+  test-evaluation:
+    name: unit tests (evaluation scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run summarize_evaluation.py unit tests
+        run: python3 -m unittest discover -s evaluation/workflows/scripts/tests -v

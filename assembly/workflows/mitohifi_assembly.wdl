@@ -81,7 +81,7 @@ task MitoHiFiAssembly {
     # Mitochondrial Code, which is fixed since this pipeline is human-specific.
     Int genetic_code = 2
 
-    # Image built from docker/mitohifi/Dockerfile, published by
+    # Image built from assembly/docker/mitohifi/Dockerfile, published by
     # .github/workflows/build-docker-images.yml.
     String docker = "quay.io/tafujino/mitohifi:3.2.3"
     # "-r" mode begins by streaming the entire input FASTQ through minimap2 against the

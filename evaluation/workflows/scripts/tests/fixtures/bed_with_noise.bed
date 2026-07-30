@@ -1,0 +1,5 @@
+track name="ignored"
+
+chr1	0	100	Err
+chr1	100	100
+chr1	200	400	Err

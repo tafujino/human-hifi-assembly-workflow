@@ -14,7 +14,7 @@ version 1.0
 ## explicit user-provided inputs, the wget download used in the original command is not performed.
 ##
 ## Since groupxy.pl is not included in the bioconda yak package, a custom Docker image
-## (docker/yak/Dockerfile) built from source with both yak itself and groupxy.pl is used.
+## (assembly/docker/yak/Dockerfile) built from source with both yak itself and groupxy.pl is used.
 ##
 ## This procedure is only meaningful for male (XY) samples, so PartitionSexchr takes an
 ## is_male flag and skips the partitioning entirely for female (XX) samples. The flag comes
@@ -128,7 +128,7 @@ task YakSexchrPartition {
     # yak sexchr options. -K: chunk size (e.g. "2g"), -t: number of threads.
     String chunk_size = "2g"
 
-    # Image built from docker/yak/Dockerfile (containing yak itself and groupxy.pl),
+    # Image built from assembly/docker/yak/Dockerfile (containing yak itself and groupxy.pl),
     # published by .github/workflows/build-docker-images.yml. Override the docker
     # input from the caller if you publish it to your own registry instead.
     String docker = "quay.io/tafujino/yak:0.1"
