@@ -73,6 +73,14 @@ git submodule update --init --recursive
 Skipping this is the most common way to see `assembly_evaluation.wdl`'s imports fail to
 resolve.
 
+The example `inputs.json` (see below) gives vendored `File` inputs like `cal_n50_script` as
+paths relative to `evaluation/`, so Cromwell must be invoked with `evaluation/` as the working
+directory — relative paths are resolved against the caller's cwd, not the WDL file's location.
+Running `cromwell run` from elsewhere (e.g. the repo root, or an output directory) causes the
+same "file not found" localization failure as a missing submodule, just for a different
+reason. Alternatively, give these `File` inputs as absolute paths in `inputs.json`, which
+resolve the same regardless of the caller's working directory.
+
 Each `.wdl` file under `evaluation/workflows/` carries a header comment explaining its
 design decisions, the same way `assembly/workflows/` does.
 
