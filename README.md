@@ -73,19 +73,20 @@ git submodule update --init --recursive
 Skipping this is the most common way to see `assembly_evaluation.wdl`'s imports fail to
 resolve.
 
-The example `inputs.json` (see below) gives vendored `File` inputs like `cal_n50_script` as
-paths relative to `evaluation/`, so Cromwell must be invoked with `evaluation/` as the working
-directory — relative paths are resolved against the caller's cwd, not the WDL file's location.
-Running `cromwell run` from elsewhere (e.g. the repo root, or an output directory) causes the
-same "file not found" localization failure as a missing submodule, just for a different
-reason. Alternatively, give these `File` inputs as absolute paths in `inputs.json`, which
+**Every `File` input in the example `inputs.json` (see below), vendored or not, is given as an
+absolute path** — including `cal_n50_script` and the other `workflows/imports/...` files.
+Relative paths are resolved against Cromwell's cwd, not the WDL file's location, so a vendored
+path relative to `evaluation/` only works if `cromwell run` happens to be invoked with
+`evaluation/` as the working directory; run it from anywhere else (the repo root, an output
+directory, or as a subworkflow called from another top-level workflow that chains assembly and
+evaluation together) and it fails to resolve, the same "file not found" localization failure as
+a missing submodule but for a different reason. Absolute paths sidestep this entirely and
 resolve the same regardless of the caller's working directory.
 
 This isn't only about the vendored files above: **every non-vendored data input
 (`hifi_read_files`, `ont_read_files`, `hap1_assembly_fasta`, `hap2_assembly_fasta`,
-`reference_cdna_fasta`, `projection_reference_fasta`, ...) should be given as an absolute
-path too**, since these live wherever your data happens to be, not under `evaluation/`, so
-pinning the cwd to `evaluation/` for the vendored files above does nothing for them. A
+`reference_cdna_fasta`, `projection_reference_fasta`, ...) must be given as an absolute
+path too**, since these live wherever your data happens to be, not under `evaluation/`. A
 relative path here doesn't always fail with an obvious "file not found": deep inside the
 vendored flagger subworkflow, a `diskSizeGB` runtime expression evaluates `size(readFile,
 "GB")` on a scattered element of `hifi_read_files` several subworkflow calls down (e.g.
