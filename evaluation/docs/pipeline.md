@@ -25,8 +25,8 @@ every task and workflow carries `parameter_meta`. Seven are worth calling out:
   **`sd_bed_to_be_projected`**, **`sex_bed_to_be_projected`**,
   **`annotations_bed_array_to_be_projected`**) — all optional overrides/annotations for the
   vendored HMM-Flagger workflow. When given, they come from files already vendored inside
-  `workflows/imports/flagger/misc/` (see `configs/inputs/assembly_evaluation.inputs.json`
-  for real paths) rather than anything fetched separately.
+  `workflows/imports/flagger/misc/` (see [example_inputs.md](example_inputs.md) for real
+  paths) rather than anything fetched separately.
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
   through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.
@@ -97,3 +97,4 @@ and their percentage of the flagged region) rather than re-parsing flagger's own
 
 * [cdna_reference.md](cdna_reference.md) — where to get the Ensembl cDNA/transcript
   reference `reference_cdna_fasta` needs
+* [example_inputs.md](example_inputs.md) — a full example `inputs.json`
