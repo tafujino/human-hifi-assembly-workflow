@@ -3,7 +3,7 @@
 ## Inputs
 
 `miniwdl input_template evaluation/workflows/assembly_evaluation.wdl` lists every input, and
-every task and workflow carries `parameter_meta`. Seven are worth calling out:
+every task and workflow carries `parameter_meta`. Eight are worth calling out:
 
 * **`hifi_read_files`** — required; **`ont_read_files`** — optional, default `[]`. HiFi is
   always evaluated with HMM-Flagger; ONT triggers a second, independent HMM-Flagger run
@@ -27,6 +27,9 @@ every task and workflow carries `parameter_meta`. Seven are worth calling out:
   vendored HMM-Flagger workflow. When given, they come from files already vendored inside
   `workflows/imports/flagger/misc/` (see [example_inputs.md](example_inputs.md) for real
   paths) rather than anything fetched separately.
+* **`projection_reference_fasta`** — T2T-CHM13v2.0 FASTA, used both as flagger's
+  annotation-projection reference and as asmgene's reference-side mapping target; see
+  [chm13_reference.md](chm13_reference.md) for where to get it.
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
   through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.

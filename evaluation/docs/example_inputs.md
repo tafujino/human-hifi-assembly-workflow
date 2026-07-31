@@ -8,6 +8,10 @@ with that as the working directory; see the top-level README). They point at fil
 vendored inside the `flagger`/`calN50` git submodules, so no separate download is needed for
 them once `git submodule update --init --recursive` has run.
 
+`reference_cdna_fasta` and `projection_reference_fasta` are the two placeholders below that
+are *not* vendored and must be fetched separately; see [cdna_reference.md](cdna_reference.md)
+and [chm13_reference.md](chm13_reference.md) for where to get each.
+
 ```json
 {
   "AssemblyEvaluation.sample_name": "PLACEHOLDER_SAMPLE_NAME",
