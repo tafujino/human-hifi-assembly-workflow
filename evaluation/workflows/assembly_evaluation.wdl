@@ -38,6 +38,8 @@ workflow AssemblyEvaluation {
     summarize_script: "Vendored summarize_evaluation.py (workflows/scripts)."
     flagger_aligner_memory_gb: "Pass-through for flagger's own read-mapping memory knob (alignerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
     flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
+    flagger_enable_splitting_reads_equally: "Pass-through for flagger's own read-splitting knob (enableSplittingReadsEqually), applied to both the HiFi and ONT runs. When true, flagger concatenates readFiles and re-splits them into flagger_split_number equal-sized chunks before aligning, so alignment is scattered across chunks instead of running as one task per input read file. Off by default, matching flagger's own default; turn on to parallelize alignment when hifi_read_files/ont_read_files is a single (or few) large file(s)."
+    flagger_split_number: "Pass-through for flagger's own chunk-count knob (splitNumber), applied to both the HiFi and ONT runs. Only takes effect when flagger_enable_splitting_reads_equally is true."
   }
 
   input {
@@ -80,6 +82,9 @@ workflow AssemblyEvaluation {
 
     Int flagger_aligner_memory_gb = 48
     Int flagger_hmm_memory_gb = 32
+
+    Boolean flagger_enable_splitting_reads_equally = false
+    Int flagger_split_number = 16
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
@@ -166,6 +171,8 @@ workflow AssemblyEvaluation {
       alphaTsv = hifi_alpha_tsv,
       alignerMemSize = flagger_aligner_memory_gb,
       flaggerMemSize = flagger_hmm_memory_gb,
+      enableSplittingReadsEqually = flagger_enable_splitting_reads_equally,
+      splitNumber = flagger_split_number,
       projectionReferenceFasta = projection_reference_fasta,
       biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
       cntrBedToBeProjected = cntr_bed_to_be_projected,
@@ -189,6 +196,8 @@ workflow AssemblyEvaluation {
         alphaTsv = ont_alpha_tsv,
         alignerMemSize = flagger_aligner_memory_gb,
         flaggerMemSize = flagger_hmm_memory_gb,
+        enableSplittingReadsEqually = flagger_enable_splitting_reads_equally,
+        splitNumber = flagger_split_number,
         projectionReferenceFasta = projection_reference_fasta,
         biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
         cntrBedToBeProjected = cntr_bed_to_be_projected,
