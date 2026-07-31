@@ -253,7 +253,6 @@ workflow HifiAssembly {
   }
 
   output {
-    File fastq = ConvertBamToFastq.fastq
     File raw_read_stats = ComputeRawReadStats.stats
     File trimmed_fastq = TrimAdapters.trimmed_fastq
     File cutadapt_report = TrimAdapters.report

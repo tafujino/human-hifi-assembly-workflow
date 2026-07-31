@@ -151,7 +151,6 @@ there to make auditable.
 
 | Output | File | Contents |
 | --- | --- | --- |
-| `fastq` | `<sample>.fastq.gz` | Reads as converted from the BAM, before trimming |
 | `trimmed_fastq` | `<sample>.trimmed.fastq.gz` | Reads given to hifiasm |
 | `cutadapt_report` | `<sample>.cutadapt.log` | How many reads were discarded, and why |
 | `cutadapt_stats` | `<sample>.cutadapt_stats.tsv` | The same discard rate as a number: `reads_processed`, `reads_discarded`, `discard_perc` |
