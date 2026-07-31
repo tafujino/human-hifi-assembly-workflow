@@ -25,7 +25,7 @@ and [chm13_reference.md](chm13_reference.md) for where to get each.
   "AssemblyEvaluation.ont_read_files": [],
   "AssemblyEvaluation.ont_preset": "ont-r10",
 
-  "AssemblyEvaluation.reference_cdna_fasta": "PLACEHOLDER_PATH_TO_Homo_sapiens.GRCh38.cdna.all.fa",
+  "AssemblyEvaluation.reference_cdna_fasta": "PLACEHOLDER_PATH_TO_Homo_sapiens.GRCh38.cdna.all.fa.gz",
   "AssemblyEvaluation.projection_reference_fasta": "PLACEHOLDER_PATH_TO_chm13v2.0.fa.gz",
 
   "AssemblyEvaluation.cal_n50_script": "workflows/imports/calN50/calN50.js",
