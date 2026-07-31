@@ -58,7 +58,7 @@ task AsmgeneEvaluate {
     ref_paf: "cDNA-to-reference PAF from MapCdnaSplice, shared across all haplotypes."
     asm_paf: "cDNA-to-haplotype PAF from MapCdnaSplice, for the haplotype being evaluated. Must not come from a hap1+hap2 concatenation: a gene present on both haplotypes is expected biology, not duplication, and would otherwise be miscounted as full_dup."
     label: "Prefix of the output TSV file names."
-    min_identity: "Minimum identity for a gene match, i.e. asmgene's -i."
+    min_identity: "Minimum identity for a gene match, i.e. asmgene's -i. Optional: when omitted, -i is not passed at all and asmgene's own default (0.99) applies."
     autosomes_only: "Restrict to genes mapped to autosomes, i.e. asmgene's -a."
   }
 
@@ -67,7 +67,7 @@ task AsmgeneEvaluate {
     File asm_paf
     String label
 
-    Float min_identity = 0.97
+    Float? min_identity
     Boolean autosomes_only = true
 
     # mobinasri/long_read_aligner:v1.1.0
@@ -80,7 +80,7 @@ task AsmgeneEvaluate {
   command <<<
     set -eux -o pipefail
 
-    k8 "${PAFTOOLS_PATH}" asmgene ~{true="-a " false="" autosomes_only}-i~{min_identity} ~{ref_paf} ~{asm_paf} > ~{label}.asmgene.raw.tsv
+    k8 "${PAFTOOLS_PATH}" asmgene ~{true="-a " false="" autosomes_only}~{"-i" + min_identity} ~{ref_paf} ~{asm_paf} > ~{label}.asmgene.raw.tsv
 
     # Reshape paftools.js's wide "H/X" table (columns: ref, asm) into a tidy,
     # machine-readable per-hap TSV: label, metric, ref_value, asm_value.

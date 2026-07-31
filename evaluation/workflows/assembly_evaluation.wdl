@@ -25,8 +25,8 @@ workflow AssemblyEvaluation {
     ont_preset: "HMM-Flagger preset for the ONT run, \"ont-r9\" or \"ont-r10\". Ignored unless ont_read_files is non-empty."
     reference_cdna_fasta: "Ensembl GRCh38 cDNA/transcript FASTA, mapped to both projection_reference_fasta and each haplotype for asmgene."
     projection_reference_fasta: "CHM13v2.0 FASTA, used both as the flagger annotation-projection reference and as the asmgene reference-side mapping target."
-    estimated_haploid_genome_size: "Estimated per-haplotype genome size for NG50 (default: human haploid, ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x this value."
-    asmgene_min_identity: "Minimum identity for asmgene gene-completeness calls."
+    estimated_haploid_genome_size_mb: "Estimated per-haplotype genome size for NG50, in Mb (default: human haploid, ~3100 Mb = ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x the bp value derived from this."
+    asmgene_min_identity: "Minimum identity for asmgene gene-completeness calls. Optional: when omitted, asmgene's own default (0.99) applies rather than a value this project imposes."
     bias_annotations_bed_array_to_be_projected: "CHM13 bias-annotation BEDs to project onto each haplotype (flagger). Optional but recommended."
     cntr_bed_to_be_projected: "CHM13 centromere BED to project onto each haplotype (flagger). Optional but recommended."
     sd_bed_to_be_projected: "CHM13 segmental-duplication BED to project onto each haplotype (flagger). Optional but recommended."
@@ -56,17 +56,15 @@ workflow AssemblyEvaluation {
 
     File projection_reference_fasta
 
-    # NB: written as 3100 * 1000000 rather than the raw literal 3100000000 --
-    # some WDL/Cromwell parser versions fail to parse an Int default literal
-    # above 2^31-1 (Java/Scala Int overflow); the multiplication expression
-    # sidesteps that bug and evaluates to the same value. The same versions
-    # also reject a >2^31-1 JSON number when overriding this input via
-    # inputs.json ("No coercion defined ... to 'Int'") -- if a non-human
-    # genome size ever needs to be passed in, editing this default directly
-    # (keeping the A * B form) is the safe option, not an inputs.json override.
-    Int estimated_haploid_genome_size = 3100 * 1000000
+    # In Mb rather than bp: some WDL/Cromwell parser versions fail to parse an Int
+    # literal above 2^31-1 (Java/Scala Int overflow), whether written directly in the
+    # WDL source or given as a JSON number in inputs.json ("No coercion defined ...
+    # to 'Int'"). Keeping this input itself small sidesteps both; the bp value derived
+    # from it below is only ever produced by a runtime multiplication, which is not
+    # subject to the same literal-parsing bug.
+    Int estimated_haploid_genome_size_mb = 3100
 
-    Float asmgene_min_identity = 0.97
+    Float? asmgene_min_identity
 
     # --- CHM13 annotation projection (flagger; optional but recommended) ---
     Array[File] bias_annotations_bed_array_to_be_projected = []
@@ -88,6 +86,7 @@ workflow AssemblyEvaluation {
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
+  Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
 
   ### 1. Basic contiguity/composition stats: hap1, hap2, combined
   call stats_t.CalculateAssemblyStats as ComputeStatsHap1 {

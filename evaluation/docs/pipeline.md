@@ -9,11 +9,12 @@ every task and workflow carries `parameter_meta`. Six are worth calling out:
   always evaluated with HMM-Flagger; ONT triggers a second, independent HMM-Flagger run
   (`ont_preset`, `"ont-r9"` or `"ont-r10"`, selects its preset) only when this array is
   non-empty. Leaving it `[]` skips ONT entirely rather than requiring a placeholder file.
-* **`estimated_haploid_genome_size`** — default `3100 * 1000000` (~3.1 Gb, human haploid),
-  used for NG50/LG50. Written as a multiplication rather than the literal `3100000000`
-  because some WDL/Cromwell versions fail to parse an `Int` default above 2^31-1, and reject
-  a JSON number that large from `inputs.json` the same way — so do **not** override this
-  from `inputs.json`; edit the WDL default instead, keeping the `A * B` form.
+* **`estimated_haploid_genome_size_mb`** — default `3100` (Mb; ~3.1 Gb, human haploid), used
+  for NG50/LG50. In Mb rather than bp so the input itself stays a small literal: some
+  WDL/Cromwell versions fail to parse an `Int` literal above 2^31-1, whether written directly
+  in the WDL source or given as a JSON number in `inputs.json`. Safe to override from
+  `inputs.json` for that reason — the bp value used internally is only ever produced by a
+  runtime multiplication, which the same versions handle fine.
 * **`cal_n50_script`** / **`summarize_script`** — this project's own vendored/authored
   helper scripts, passed in as plain `File` inputs rather than being baked into an image:
   `workflows/imports/calN50/calN50.js` and `workflows/scripts/summarize_evaluation.py`
@@ -29,8 +30,11 @@ every task and workflow carries `parameter_meta`. Six are worth calling out:
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
   through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.
-* **`asmgene_min_identity`** (default 0.97) — minimum identity for an asmgene gene match
-  (`paftools.js asmgene -i`).
+* **`asmgene_min_identity`** — optional; minimum identity for an asmgene gene match
+  (`paftools.js asmgene -i`). Left unset by default, so `-i` is not passed at all and
+  asmgene's own default (0.99) applies, matching both the upstream methodology this
+  project is based on (lh3's own asmgene write-up uses ~99%) and how the vendored
+  flagger repository's own HPP QC pipeline calls asmgene (without `-i`).
 
 ## Outputs
 
@@ -43,7 +47,7 @@ names (the HMM-Flagger outputs are named by the vendored flagger workflow instea
 | --- | --- | --- |
 | `stats_hap1_tsv` | `<sample>.hap1.assembly_stats.tsv` | Total length, N50/NG50, L50/LG50, longest contig, GC% for hap1 |
 | `stats_hap2_tsv` | `<sample>.hap2.assembly_stats.tsv` | The same for hap2 |
-| `stats_combined_tsv` | `<sample>.combined.assembly_stats.tsv` | The same for hap1+hap2 concatenated, using 2x `estimated_haploid_genome_size` for NG50/LG50 |
+| `stats_combined_tsv` | `<sample>.combined.assembly_stats.tsv` | The same for hap1+hap2 concatenated, using 2x the bp value derived from `estimated_haploid_genome_size_mb` for NG50/LG50 |
 
 ### asmgene (gene completeness/duplication)
 
