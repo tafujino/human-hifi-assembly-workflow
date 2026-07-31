@@ -12,6 +12,14 @@ them once `git submodule update --init --recursive` has run.
 are *not* vendored and must be fetched separately; see [cdna_reference.md](cdna_reference.md)
 and [chm13_reference.md](chm13_reference.md) for where to get each.
 
+All `PLACEHOLDER_PATH_TO_*` values below (`hap1_assembly_fasta`, `hap2_assembly_fasta`,
+`hifi_read_files`, `ont_read_files`, `reference_cdna_fasta`, `projection_reference_fasta`)
+should be given as **absolute paths**, not paths relative to wherever they happen to sit.
+Unlike the vendored `workflows/imports/...` paths, these aren't relative to `evaluation/`,
+so they don't benefit from Cromwell being invoked with `evaluation/` as cwd (see the
+top-level README) — and a relative path here can fail deep inside the vendored flagger
+subworkflow with a confusing garbled-path error instead of a plain "not found".
+
 ```json
 {
   "AssemblyEvaluation.sample_name": "PLACEHOLDER_SAMPLE_NAME",

@@ -81,6 +81,20 @@ same "file not found" localization failure as a missing submodule, just for a di
 reason. Alternatively, give these `File` inputs as absolute paths in `inputs.json`, which
 resolve the same regardless of the caller's working directory.
 
+This isn't only about the vendored files above: **every non-vendored data input
+(`hifi_read_files`, `ont_read_files`, `hap1_assembly_fasta`, `hap2_assembly_fasta`,
+`reference_cdna_fasta`, `projection_reference_fasta`, ...) should be given as an absolute
+path too**, since these live wherever your data happens to be, not under `evaluation/`, so
+pinning the cwd to `evaluation/` for the vendored files above does nothing for them. A
+relative path here doesn't always fail with an obvious "file not found": deep inside the
+vendored flagger subworkflow, a `diskSizeGB` runtime expression evaluates `size(readFile,
+"GB")` on a scattered element of `hifi_read_files` several subworkflow calls down (e.g.
+inside `call-extractReadstoGZ`), and a relative path there resolves against *that nested
+call's own execution directory* rather than the original cwd — producing a garbled,
+nonexistent path (something like
+`.../call-extractReadstoGZ/shard-0/execution/outputs/HifiAssembly/.../HG002.trimmed.fastq.gz`)
+instead of a clean "not found" against the path you actually wrote.
+
 Each `.wdl` file under `evaluation/workflows/` carries a header comment explaining its
 design decisions, the same way `assembly/workflows/` does.
 
