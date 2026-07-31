@@ -28,11 +28,13 @@ task MapCdnaSplice {
     # mobinasri/long_read_aligner:v1.1.0
     String docker = "mobinasri/long_read_aligner@sha256:f4332fb5cdff7454e5a56566627a7343d57a6c9f6f4a4e52966ef75fb28820f6"
     Int cpu = 8
-    # 16 GB was observed OOM-killed in production (maxvmem 23.8 GB mapping a
-    # haplotype assembly, 17.1 GB for the CHM13 reference side) -- minimap2
-    # splice:hq indexing over a ~3 Gb target needs more headroom than the 8 GB
-    # project floor. See evaluation/internal-docs/design-overview.md section 2.
-    Int memory_gb = 32
+    # Bumped twice after production OOM kills: 16 GB -> maxvmem 23.8 GB (hap1)
+    # / 17.1 GB (reference), then 32 GB -> maxvmem 34.9 GB (hap2). minimap2
+    # splice:hq indexing over a ~3 Gb target varies enough by haplotype content
+    # that a single-digit-GB margin isn't safe. See
+    # evaluation/internal-docs/design-overview.md section 2 for the 8 GB floor
+    # this is well above.
+    Int memory_gb = 64
     Int disk_gb = 4 * ceil(size(target_fasta, "GB") + size(cdna_fasta, "GB")) + 50
   }
 
