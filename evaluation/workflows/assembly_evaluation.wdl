@@ -1,9 +1,9 @@
 version 1.0
 
-import "assembly_stats.wdl" as stats_t
-import "asmgene.wdl" as asmgene_t
-import "summary.wdl" as summary_t
-import "imports/flagger/wdls/workflows/hmm_flagger_end_to_end_with_mapping.wdl" as flagger_t
+import "assembly_stats.wdl" as stats_wf
+import "asmgene.wdl" as asmgene_wf
+import "summary.wdl" as summary_wf
+import "imports/flagger/wdls/workflows/hmm_flagger_end_to_end_with_mapping.wdl" as flagger_wf
 
 ## Diploid assembly evaluation: basic contiguity stats, HMM-Flagger misassembly detection
 ## (HiFi always, ONT additionally if ont_read_files is non-empty), and asmgene gene
@@ -89,71 +89,67 @@ workflow AssemblyEvaluation {
   Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
 
   ### 1. Basic contiguity/composition stats: hap1, hap2, combined
-  call stats_t.CalculateAssemblyStats as ComputeStatsHap1 {
+  call stats_wf.CalculateAssemblyStats as ComputeStatsHap1 {
     input:
       assembly_fastas = [hap1_assembly_fasta],
       label = sample_name + ".hap1",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size,
+      genome_size_for_ng50 = estimated_haploid_genome_size
   }
-  call stats_t.CalculateAssemblyStats as ComputeStatsHap2 {
+  call stats_wf.CalculateAssemblyStats as ComputeStatsHap2 {
     input:
       assembly_fastas = [hap2_assembly_fasta],
       label = sample_name + ".hap2",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size,
+      genome_size_for_ng50 = estimated_haploid_genome_size
   }
-  call stats_t.CalculateAssemblyStats as ComputeStatsCombined {
+  call stats_wf.CalculateAssemblyStats as ComputeStatsCombined {
     input:
       assembly_fastas = [hap1_assembly_fasta, hap2_assembly_fasta],
       label = sample_name + ".combined",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size * 2,
-      disk_gb = ceil(size(hap1_assembly_fasta, "GB") + size(hap2_assembly_fasta, "GB")) * 3 + 50,
+      genome_size_for_ng50 = estimated_haploid_genome_size * 2
   }
 
   ### 2. asmgene: single reference-side mapping, then per-hap mapping + evaluation
-  call asmgene_t.MapCdnaSplice as MapCdnaToReference {
+  call asmgene_wf.MapCdnaSplice as MapCdnaToReference {
     input:
       target_fasta = projection_reference_fasta,
       cdna_fasta = reference_cdna_fasta,
-      label = "ref_cdna_to_chm13",
-      disk_gb = ceil(size(projection_reference_fasta, "GB")) * 4 + 50,
+      label = "ref_cdna_to_chm13"
   }
-  call asmgene_t.MapCdnaSplice as MapCdnaToHap1 {
+  call asmgene_wf.MapCdnaSplice as MapCdnaToHap1 {
     input:
       target_fasta = hap1_assembly_fasta,
       cdna_fasta = reference_cdna_fasta,
-      label = sample_name + ".hap1.cdna",
-      disk_gb = ceil(size(hap1_assembly_fasta, "GB")) * 4 + 50,
+      label = sample_name + ".hap1.cdna"
   }
-  call asmgene_t.MapCdnaSplice as MapCdnaToHap2 {
+  call asmgene_wf.MapCdnaSplice as MapCdnaToHap2 {
     input:
       target_fasta = hap2_assembly_fasta,
       cdna_fasta = reference_cdna_fasta,
-      label = sample_name + ".hap2.cdna",
-      disk_gb = ceil(size(hap2_assembly_fasta, "GB")) * 4 + 50,
+      label = sample_name + ".hap2.cdna"
   }
   # Evaluated per haplotype (never hap1+hap2 concatenated): a gene present on both
   # haplotypes is expected biology, not duplication, and would otherwise be
   # miscounted as full_dup. See internal-docs/design-overview.md section 3.3.
-  call asmgene_t.AsmgeneEvaluate as EvaluateAsmgeneHap1 {
+  call asmgene_wf.AsmgeneEvaluate as EvaluateAsmgeneHap1 {
     input:
       ref_paf = MapCdnaToReference.paf,
       asm_paf = MapCdnaToHap1.paf,
       label = sample_name + ".hap1",
-      min_identity = asmgene_min_identity,
+      min_identity = asmgene_min_identity
   }
-  call asmgene_t.AsmgeneEvaluate as EvaluateAsmgeneHap2 {
+  call asmgene_wf.AsmgeneEvaluate as EvaluateAsmgeneHap2 {
     input:
       ref_paf = MapCdnaToReference.paf,
       asm_paf = MapCdnaToHap2.paf,
       label = sample_name + ".hap2",
-      min_identity = asmgene_min_identity,
+      min_identity = asmgene_min_identity
   }
 
   ### 3. HMM-Flagger: HiFi run (always)
-  call flagger_t.HMMFlaggerEndToEndWithMapping as RunFlaggerHifi {
+  call flagger_wf.HMMFlaggerEndToEndWithMapping as RunFlaggerHifi {
     input:
       sampleName = sample_name,
       suffixForMapping = "hifi_minimap2",
@@ -171,12 +167,12 @@ workflow AssemblyEvaluation {
       cntrBedToBeProjected = cntr_bed_to_be_projected,
       SDBedToBeProjected = sd_bed_to_be_projected,
       sexBedToBeProjected = sex_bed_to_be_projected,
-      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
   }
 
   ### 4. HMM-Flagger: ONT run (only if ont_read_files was supplied)
   if (has_ont_reads) {
-    call flagger_t.HMMFlaggerEndToEndWithMapping as RunFlaggerOnt {
+    call flagger_wf.HMMFlaggerEndToEndWithMapping as RunFlaggerOnt {
       input:
         sampleName = sample_name,
         suffixForMapping = "ont_minimap2",
@@ -194,12 +190,12 @@ workflow AssemblyEvaluation {
         cntrBedToBeProjected = cntr_bed_to_be_projected,
         SDBedToBeProjected = sd_bed_to_be_projected,
         sexBedToBeProjected = sex_bed_to_be_projected,
-        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
     }
   }
 
   ### 5. Aggregate everything into one summary TSV/JSON
-  call summary_t.SummarizeAssemblyEvaluation as SummarizeAssemblyEvaluation {
+  call summary_wf.SummarizeAssemblyEvaluation as SummarizeAssemblyEvaluation {
     input:
       summarize_script = summarize_script,
       sample_name = sample_name,
@@ -211,7 +207,7 @@ workflow AssemblyEvaluation {
       flagger_hifi_final_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1,
       flagger_hifi_final_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2,
       flagger_ont_final_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1,
-      flagger_ont_final_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2,
+      flagger_ont_final_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2
   }
 
   output {

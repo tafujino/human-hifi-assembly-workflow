@@ -47,11 +47,16 @@ task SummarizeAssemblyEvaluation {
     String docker = "mobinasri/bio_base@sha256:948d46037077963eda3b6e0400966a005adf82765b1892593db6504331861ebc"
     Int cpu = 1
     Int memory_gb = 8
-    Int disk_gb = 32
+    Int disk_gb = 2 * ceil(
+      size(stats_hap1_tsv, "GB") + size(stats_hap2_tsv, "GB") + size(stats_combined_tsv, "GB")
+      + size(asmgene_hap1_summary_tsv, "GB") + size(asmgene_hap2_summary_tsv, "GB")
+      + size(flagger_hifi_final_bed_hap1, "GB") + size(flagger_hifi_final_bed_hap2, "GB")
+      + size(flagger_ont_final_bed_hap1, "GB") + size(flagger_ont_final_bed_hap2, "GB")
+    ) + 20
   }
 
   command <<<
-    set -eux -o pipefail
+    set -euo pipefail
     python3 ~{summarize_script} \
       --sample ~{sample_name} \
       --stats-hap1 ~{stats_hap1_tsv} \

@@ -29,11 +29,11 @@ task MapCdnaSplice {
     String docker = "mobinasri/long_read_aligner@sha256:f4332fb5cdff7454e5a56566627a7343d57a6c9f6f4a4e52966ef75fb28820f6"
     Int cpu = 8
     Int memory_gb = 16
-    Int disk_gb = 64
+    Int disk_gb = 4 * ceil(size(target_fasta, "GB") + size(cdna_fasta, "GB")) + 50
   }
 
   command <<<
-    set -eux -o pipefail
+    set -euo pipefail
     minimap2 -cx splice:hq -t ~{cpu} ~{target_fasta} ~{cdna_fasta} > ~{label}.paf
   >>>
 
@@ -74,11 +74,11 @@ task AsmgeneEvaluate {
     String docker = "mobinasri/long_read_aligner@sha256:f4332fb5cdff7454e5a56566627a7343d57a6c9f6f4a4e52966ef75fb28820f6"
     Int cpu = 2
     Int memory_gb = 8
-    Int disk_gb = 32
+    Int disk_gb = 2 * ceil(size(ref_paf, "GB") + size(asm_paf, "GB")) + 20
   }
 
   command <<<
-    set -eux -o pipefail
+    set -euo pipefail
 
     k8 "${PAFTOOLS_PATH}" asmgene ~{true="-a " false="" autosomes_only}~{"-i" + min_identity} ~{ref_paf} ~{asm_paf} > ~{label}.asmgene.raw.tsv
 

@@ -28,11 +28,11 @@ task CalculateAssemblyStats {
     String docker = "mobinasri/long_read_aligner@sha256:f4332fb5cdff7454e5a56566627a7343d57a6c9f6f4a4e52966ef75fb28820f6"
     Int cpu = 2
     Int memory_gb = 8
-    Int disk_gb = 128
+    Int disk_gb = 3 * ceil(size(assembly_fastas, "GB")) + 20
   }
 
   command <<<
-    set -eux -o pipefail
+    set -euo pipefail
 
     > assembly.fa
     for f in ~{sep=" " assembly_fastas}; do
