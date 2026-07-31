@@ -59,9 +59,7 @@ them once `git submodule update --init --recursive` has run.
     "workflows/imports/flagger/misc/stratifications/sd/chm13v2.0_SD.all.bed",
     "workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_le6_STR.bed",
     "workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_ge7_VNTR.bed"
-  ],
-
-  "AssemblyEvaluation.flagger_version": "v1.2.0"
+  ]
 }
 ```
 

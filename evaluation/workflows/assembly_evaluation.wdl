@@ -36,7 +36,6 @@ workflow AssemblyEvaluation {
     ont_alpha_tsv: "Override for HMM-Flagger's per-preset alpha table, ONT run. If omitted, flagger picks its own preset-based default."
     cal_n50_script: "Vendored copy of lh3/calN50's calN50.js (workflows/imports/calN50)."
     summarize_script: "Vendored summarize_evaluation.py (workflows/scripts)."
-    flagger_version: "HMM-Flagger version, used only to label output suffixes; the actual version run is whatever is vendored under workflows/imports/flagger."
     flagger_aligner_memory_gb: "Pass-through for flagger's own read-mapping memory knob (alignerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
     flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
   }
@@ -79,14 +78,19 @@ workflow AssemblyEvaluation {
     File cal_n50_script
     File summarize_script
 
-    String flagger_version = "v1.2.0"
-
     Int flagger_aligner_memory_gb = 48
     Int flagger_hmm_memory_gb = 32
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
   Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
+
+  # Only a label for flagger output suffixes, not a knob: the version actually run is
+  # whatever workflows/imports/flagger is pinned to (see internal-docs/design-overview.md
+  # section 3.2). Deliberately a local, not a workflow input -- overriding it from
+  # inputs.json couldn't change which flagger code runs, only mislabel the outputs.
+  # Update it together with the submodule pin.
+  String flagger_version = "v1.2.0"
 
   ### 1. Basic contiguity/composition stats: hap1, hap2, combined
   call stats_wf.CalculateAssemblyStats as ComputeStatsHap1 {
