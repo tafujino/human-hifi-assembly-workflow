@@ -3,7 +3,7 @@
 ## Inputs
 
 `miniwdl input_template evaluation/workflows/assembly_evaluation.wdl` lists every input, and
-every task and workflow carries `parameter_meta`. Six are worth calling out:
+every task and workflow carries `parameter_meta`. Seven are worth calling out:
 
 * **`hifi_read_files`** — required; **`ont_read_files`** — optional, default `[]`. HiFi is
   always evaluated with HMM-Flagger; ONT triggers a second, independent HMM-Flagger run
@@ -30,6 +30,9 @@ every task and workflow carries `parameter_meta`. Six are worth calling out:
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
   through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.
+* **`reference_cdna_fasta`** — Ensembl GRCh38 cDNA/transcript FASTA, e.g.
+  `Homo_sapiens.GRCh38.cdna.all.fa(.gz)`. Mapped to both `projection_reference_fasta` and
+  each haplotype for asmgene; see [cdna_reference.md](cdna_reference.md) for where to get it.
 * **`asmgene_min_identity`** — optional; minimum identity for an asmgene gene match
   (`paftools.js asmgene -i`). Left unset by default, so `-i` is not passed at all and
   asmgene's own default (0.99) applies, matching both the upstream methodology this
@@ -89,3 +92,8 @@ happened.
 HMM-Flagger it sums each BED's column-4 label lengths itself (Err/Dup/Hap/Col base totals
 and their percentage of the flagged region) rather than re-parsing flagger's own
 `full_stats_tsv`, whose schema is internal to that project.
+
+## Further documentation
+
+* [cdna_reference.md](cdna_reference.md) — where to get the Ensembl cDNA/transcript
+  reference `reference_cdna_fasta` needs
