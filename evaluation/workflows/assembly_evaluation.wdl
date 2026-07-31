@@ -7,9 +7,7 @@ import "imports/flagger/wdls/workflows/hmm_flagger_end_to_end_with_mapping.wdl" 
 
 ## Diploid assembly evaluation: basic contiguity stats, HMM-Flagger misassembly detection
 ## (HiFi always, ONT additionally if ont_read_files is non-empty), and asmgene gene
-## completeness/duplication, evaluated per haplotype throughout. See internal-docs/design-overview.md for
-## the full design rationale (why hap1/hap2 are never concatenated for asmgene, why
-## every task's memory floor is 8 GB, etc).
+## completeness/duplication, evaluated per haplotype throughout.
 
 workflow AssemblyEvaluation {
   meta {
@@ -36,8 +34,8 @@ workflow AssemblyEvaluation {
     ont_alpha_tsv: "Override for HMM-Flagger's per-preset alpha table, ONT run. If omitted, flagger picks its own preset-based default."
     cal_n50_script: "Vendored copy of lh3/calN50's calN50.js (workflows/imports/calN50)."
     summarize_script: "Vendored summarize_evaluation.py (workflows/scripts)."
-    flagger_aligner_memory_gb: "Pass-through for flagger's own read-mapping memory knob (alignerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
-    flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy (internal-docs/design-overview.md section 2)."
+    flagger_aligner_memory_gb: "Pass-through for flagger's own read-mapping memory knob (alignerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy."
+    flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy."
     flagger_enable_splitting_reads_equally: "Pass-through for flagger's own read-splitting knob (enableSplittingReadsEqually), applied to both the HiFi and ONT runs. When true, flagger concatenates readFiles and re-splits them into flagger_split_number equal-sized chunks before aligning, so alignment is scattered across chunks instead of running as one task per input read file. Off by default, matching flagger's own default; turn on to parallelize alignment when hifi_read_files/ont_read_files is a single (or few) large file(s)."
     flagger_split_number: "Pass-through for flagger's own chunk-count knob (splitNumber), applied to both the HiFi and ONT runs. Only takes effect when flagger_enable_splitting_reads_equally is true."
   }
@@ -91,10 +89,9 @@ workflow AssemblyEvaluation {
   Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
 
   # Only a label for flagger output suffixes, not a knob: the version actually run is
-  # whatever workflows/imports/flagger is pinned to (see internal-docs/design-overview.md
-  # section 3.2). Deliberately a local, not a workflow input -- overriding it from
-  # inputs.json couldn't change which flagger code runs, only mislabel the outputs.
-  # Update it together with the submodule pin.
+  # whatever workflows/imports/flagger is pinned to. Deliberately a local, not a
+  # workflow input -- overriding it from inputs.json couldn't change which flagger
+  # code runs, only mislabel the outputs. Update it together with the submodule pin.
   String flagger_version = "v1.2.0"
 
   ### 1. Basic contiguity/composition stats: hap1, hap2, combined
@@ -141,7 +138,7 @@ workflow AssemblyEvaluation {
   }
   # Evaluated per haplotype (never hap1+hap2 concatenated): a gene present on both
   # haplotypes is expected biology, not duplication, and would otherwise be
-  # miscounted as full_dup. See internal-docs/design-overview.md section 3.3.
+  # miscounted as full_dup.
   call asmgene_wf.AsmgeneEvaluate as EvaluateAsmgeneHap1 {
     input:
       ref_paf = MapCdnaToReference.paf,

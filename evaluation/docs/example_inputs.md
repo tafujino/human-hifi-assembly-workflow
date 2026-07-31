@@ -4,20 +4,10 @@
 placeholders to fill in; everything else is fixed and can be copied as-is once
 `<PATH_TO_REPO_ROOT>` is replaced with the absolute path of your clone of this repository.
 
-Every `File` input below — vendored and non-vendored alike — is given as an **absolute
-path**. The `workflows/imports/...` files are vendored inside the `flagger`/`calN50` git
-submodules (no separate download needed for them once `git submodule update --init
---recursive` has run), but they're still spelled out as
-`<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/...` rather than as a path
-relative to `evaluation/`. A relative path only resolves correctly if Cromwell happens to be
-invoked with `evaluation/` as its working directory; it breaks the moment `AssemblyEvaluation`
-is invoked from anywhere else — for example as a subworkflow of another top-level workflow
-that chains assembly and evaluation together — and can fail deep inside the vendored flagger
-subworkflow with a confusing garbled-path error instead of a plain "not found" (a
-`diskSizeGB` runtime expression evaluates `size(...)` on a scattered element several
-subworkflow calls down, so a bad relative path resolves against *that nested call's own
-execution directory*, not the caller's cwd). Absolute paths sidestep the whole problem and
-work the same regardless of caller or cwd.
+Every `File` input below — vendored (`workflows/imports/...`) and non-vendored alike — must be
+given as an **absolute path**. The vendored ones live inside the `flagger`/`calN50` git
+submodules, so no separate download is needed for them once `git submodule update --init
+--recursive` has run.
 
 `reference_cdna_fasta` and `projection_reference_fasta` are the two placeholders below that
 are *not* vendored and must be fetched separately; see [cdna_reference.md](cdna_reference.md)

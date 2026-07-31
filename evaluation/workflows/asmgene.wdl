@@ -31,9 +31,8 @@ task MapCdnaSplice {
     # Bumped twice after production OOM kills: 16 GB -> maxvmem 23.8 GB (hap1)
     # / 17.1 GB (reference), then 32 GB -> maxvmem 34.9 GB (hap2). minimap2
     # splice:hq indexing over a ~3 Gb target varies enough by haplotype content
-    # that a single-digit-GB margin isn't safe. See
-    # evaluation/internal-docs/design-overview.md section 2 for the 8 GB floor
-    # this is well above.
+    # that a single-digit-GB margin isn't safe -- well above this project's
+    # 8 GB memory floor.
     Int memory_gb = 64
     Int disk_gb = 4 * ceil(size(target_fasta, "GB") + size(cdna_fasta, "GB")) + 50
   }
