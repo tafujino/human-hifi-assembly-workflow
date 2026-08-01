@@ -14,13 +14,23 @@
 # Usage:
 #   evaluation/docker/check_images.sh              # check that every pinned image is resolvable
 #   evaluation/docker/check_images.sh --list        # print this repo's own pinned images
-#   evaluation/docker/check_images.sh --list-vendored  # print images pinned by workflows/imports/
-#   evaluation/docker/check_images.sh --list-all    # both lists, merged and de-duplicated
+#   evaluation/docker/check_images.sh --list-reachable  # print every image this project's real
+#                                                        # run can pull, including the vendored
+#                                                        # flagger/calN50 submodules
 #
-# The --list-vendored/--list-all forms are for pre-warming a build/pull cache (e.g. on a
-# high-memory node, ahead of a real Cromwell run) where a submodule image's squashfs build
-# is expensive. They are informational only -- not part of the resolvability check above,
-# since this repo does not control those pins and has no fix to offer for one that is bad.
+# --list-reachable is for pre-warming a build/pull cache (e.g. on a high-memory node, ahead of
+# a real Cromwell run) where a submodule image's squashfs build is expensive. It is
+# informational only -- not part of the resolvability check above, since this repo does not
+# control vendored pins and has no fix to offer for one that is bad.
+#
+# It's scoped to files actually reachable via `import` from
+# evaluation/workflows/assembly_evaluation.wdl (resolved by miniwdl -- see
+# reachable_wdl_files.py) rather than every *.wdl under workflows/imports/, because the
+# vendored flagger submodule also carries standalone components nothing here imports (e.g.
+# its DeepVariant/PEPPER-Margin-DeepVariant variant-calling workflows, or its whole
+# QC/assembly task library under ext/hpp_production_workflows) -- scanning the whole
+# directory would report images this run never invokes. Requires miniwdl's `WDL` package;
+# fails with an explanatory error if that isn't installed.
 
 set -euo pipefail
 
@@ -43,31 +53,46 @@ list_own_images() {
 #     runtime block -- but a handful of its tasks hardcode `docker: "..."` directly instead.
 #   - calN50 pins no image of its own; calN50.js runs under whatever image the *calling*
 #     top-level task specifies, so it's already covered by list_own_images.
-# So this covers both shapes rather than relying on a single fixed variable name.
-list_vendored_images() {
-  local dir="$REPO_ROOT/workflows/imports"
+# So this covers both shapes rather than relying on a single fixed variable name. Takes an
+# explicit file list (rather than scanning a whole directory) so callers can scope it to
+# exactly the files WDL's import graph reaches -- see list_reachable_images().
+extract_docker_images_from_files() {
+  [[ $# -eq 0 ]] && return 0
 
   # Each grep is allowed to match nothing (`|| true`): under pipefail a pattern that
   # happens to have zero hits right now -- e.g. if a future submodule update drops the
   # single-quoted form -- would otherwise abort the whole function instead of just
   # contributing an empty list for that shape.
-  grep -rhoE 'docker[[:space:]]*:[[:space:]]*"[^"]+"' "$dir" --include='*.wdl' |
+  grep -hoE 'docker[[:space:]]*:[[:space:]]*"[^"]+"' "$@" |
     sed -E 's/.*"([^"]+)".*/\1/' || true
-  grep -rhoE "docker[[:space:]]*:[[:space:]]*'[^']+'" "$dir" --include='*.wdl' |
+  grep -hoE "docker[[:space:]]*:[[:space:]]*'[^']+'" "$@" |
     sed -E "s/.*'([^']+)'.*/\1/" || true
-  grep -rhoE 'String[[:space:]]+[A-Za-z_]*[Dd]ocker[A-Za-z_]*[[:space:]]*=[[:space:]]*"[^"]+"' \
-    "$dir" --include='*.wdl' |
+  grep -hoE 'String[[:space:]]+[A-Za-z_]*[Dd]ocker[A-Za-z_]*[[:space:]]*=[[:space:]]*"[^"]+"' "$@" |
     sed -E 's/.*"([^"]+)".*/\1/' || true
 }
 
+list_reachable_images() {
+  local py_out
+  py_out="$(python3 "$SCRIPT_DIR/reachable_wdl_files.py")" || {
+    echo "error: could not compute the WDL import closure (see above) -- install miniwdl (pip install miniwdl) and retry" >&2
+    return 1
+  }
+
+  local -a files=()
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && files+=("$f")
+  done <<< "$py_out"
+
+  # `"${files[@]}"` on an empty array is an unbound-variable error under `set -u` on
+  # bash < 4.4 (e.g. macOS's stock bash 3.2), so guard rather than expand it unconditionally.
+  [[ ${#files[@]} -eq 0 ]] && return 0
+  extract_docker_images_from_files "${files[@]}"
+}
+
 case "${1:-}" in
-  --list-vendored)
-    list_vendored_images | sort -u
-    exit 0
-    ;;
-  --list-all)
-    { list_own_images; list_vendored_images; } | sort -u
-    exit 0
+  --list-reachable)
+    list_reachable_images | sort -u
+    exit "$?"
     ;;
 esac
 
