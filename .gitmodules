@@ -1,6 +1,6 @@
 [submodule "evaluation/workflows/imports/flagger"]
 	path = evaluation/workflows/imports/flagger
-	url = https://github.com/mobinasri/flagger.git
+	url = https://github.com/tafujino/flagger.git
 [submodule "evaluation/workflows/imports/calN50"]
 	path = evaluation/workflows/imports/calN50
 	url = https://github.com/lh3/calN50.git
