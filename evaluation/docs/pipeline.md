@@ -122,3 +122,5 @@ and their percentage of the flagged region) rather than re-parsing flagger's own
 * [cdna_reference.md](cdna_reference.md) — where to get the Ensembl cDNA/transcript
   reference `reference_cdna_fasta` needs
 * [example_inputs.md](example_inputs.md) — a full example `inputs.json`
+* [augment_coverage_by_labels_fix.md](augment_coverage_by_labels_fix.md) — background on the
+  `augmentCoverageByLabels` memory crash mentioned above and why it's fixed in this fork
