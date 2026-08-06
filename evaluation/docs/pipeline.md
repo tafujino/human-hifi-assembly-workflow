@@ -33,6 +33,27 @@ every task and workflow carries `parameter_meta`. Eight are worth calling out:
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
   through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.
+  These two are the only vendored flagger memory knobs exposed this way. Some other
+  flagger-internal tasks (e.g. three of the six annotation-projection calls inside
+  `runProjectBlocksForFlagger` -- `projectSex`/`projectCntr`/`projectCntrCt`, unlike
+  `projectBiasedBlocks`/`projectSD`/`projectAdditional`, which already hardcode `memSize=32`
+  at the call site) still run at their low vendored memory default with no pass-through here,
+  and — unlike the two above — this **cannot** be raised from `inputs.json` at all: Cromwell
+  rejects a fully-qualified override targeting a nested call input that no intermediate
+  workflow declares as its own (`Unexpected input provided: ...`, confirmed against this
+  project's own Cromwell). `workflows/imports/flagger` points at `tafujino/flagger`, a fork
+  kept specifically so defaults like these can be fixed directly rather than worked around
+  from the outside when they prove insufficient — see that fork's
+  `fix-augment-coverage-by-labels-crash` branch, which fixed the underlying C bug in
+  `augmentCoverageByLabels` (a per-chunk buffer sized off the wrong parameter, unused by that
+  task but still allocated at full size) that had made its default `memSize` insufficient at
+  full-genome scale (that default is back to upstream's 32 GB now that the real fix landed),
+  and separately unified every flagger task this workflow actually invokes onto this fork's
+  image (`decomposeCntrBed`/`getIndexLabeledBed`/all six `project` calls previously ran
+  upstream's unfixed image with no ill effect, since none of them touch the C bug above, but
+  keeping one image simplifies build/cache management). Memory defaults still low above
+  haven't needed the same treatment; if one does, the same path (fix in the fork, bump the
+  submodule pointer) applies rather than a Cromwell/scheduler-level workaround.
 * **`reference_cdna_fasta`** — Ensembl GRCh38 cDNA/transcript FASTA, e.g.
   `Homo_sapiens.GRCh38.cdna.all.fa(.gz)`. Mapped to both `projection_reference_fasta` and
   each haplotype for asmgene; see [cdna_reference.md](cdna_reference.md) for where to get it.
