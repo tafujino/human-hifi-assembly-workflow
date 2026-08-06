@@ -23,14 +23,16 @@
 # informational only -- not part of the resolvability check above, since this repo does not
 # control vendored pins and has no fix to offer for one that is bad.
 #
-# It's scoped to files actually reachable via `import` from
-# evaluation/workflows/assembly_evaluation.wdl (resolved by miniwdl -- see
-# reachable_wdl_files.py) rather than every *.wdl under workflows/imports/, because the
-# vendored flagger submodule also carries standalone components nothing here imports (e.g.
-# its DeepVariant/PEPPER-Margin-DeepVariant variant-calling workflows, or its whole
-# QC/assembly task library under ext/hpp_production_workflows) -- scanning the whole
-# directory would report images this run never invokes. Requires miniwdl's `WDL` package;
-# fails with an explanatory error if that isn't installed.
+# It walks the actual `Call` graph from evaluation/workflows/assembly_evaluation.wdl (resolved
+# by miniwdl -- see resolve_reachable_images.py), resolving each task's `runtime.docker`
+# through call-site overrides (e.g. `dockerImage = flaggerDockerImage`) back to a literal
+# image, rather than just following `import` statements and collecting every dockerImage
+# default in every file that reaches -- which would also report images from tasks/workflows
+# nothing in the real call graph ever invokes (e.g. flagger's DeepVariant/
+# PEPPER-Margin-DeepVariant variant-calling workflows, or its whole QC/assembly task library
+# under ext/hpp_production_workflows), and a task's own hardcoded default even when every
+# real call site overrides it. Requires miniwdl's `WDL` package; fails with an explanatory
+# error if that isn't installed.
 
 set -euo pipefail
 
@@ -46,47 +48,11 @@ list_own_images() {
     sort -u
 }
 
-# The vendored flagger/calN50 submodules under workflows/imports/ don't follow this repo's
-# `String docker = "..."` convention:
-#   - flagger declares each image as `String <name>DockerImage = "..."` (task or workflow
-#     input with a default), then references it as `docker: <name>DockerImage` in the
-#     runtime block -- but a handful of its tasks hardcode `docker: "..."` directly instead.
-#   - calN50 pins no image of its own; calN50.js runs under whatever image the *calling*
-#     top-level task specifies, so it's already covered by list_own_images.
-# So this covers both shapes rather than relying on a single fixed variable name. Takes an
-# explicit file list (rather than scanning a whole directory) so callers can scope it to
-# exactly the files WDL's import graph reaches -- see list_reachable_images().
-extract_docker_images_from_files() {
-  [[ $# -eq 0 ]] && return 0
-
-  # Each grep is allowed to match nothing (`|| true`): under pipefail a pattern that
-  # happens to have zero hits right now -- e.g. if a future submodule update drops the
-  # single-quoted form -- would otherwise abort the whole function instead of just
-  # contributing an empty list for that shape.
-  grep -hoE 'docker[[:space:]]*:[[:space:]]*"[^"]+"' "$@" |
-    sed -E 's/.*"([^"]+)".*/\1/' || true
-  grep -hoE "docker[[:space:]]*:[[:space:]]*'[^']+'" "$@" |
-    sed -E "s/.*'([^']+)'.*/\1/" || true
-  grep -hoE 'String[[:space:]]+[A-Za-z_]*[Dd]ocker[A-Za-z_]*[[:space:]]*=[[:space:]]*"[^"]+"' "$@" |
-    sed -E 's/.*"([^"]+)".*/\1/' || true
-}
-
 list_reachable_images() {
-  local py_out
-  py_out="$(python3 "$SCRIPT_DIR/reachable_wdl_files.py")" || {
-    echo "error: could not compute the WDL import closure (see above) -- install miniwdl (pip install miniwdl) and retry" >&2
+  python3 "$SCRIPT_DIR/resolve_reachable_images.py" || {
+    echo "error: could not resolve the WDL call graph (see above) -- install miniwdl (pip install miniwdl) and retry" >&2
     return 1
   }
-
-  local -a files=()
-  while IFS= read -r f; do
-    [[ -n "$f" ]] && files+=("$f")
-  done <<< "$py_out"
-
-  # `"${files[@]}"` on an empty array is an unbound-variable error under `set -u` on
-  # bash < 4.4 (e.g. macOS's stock bash 3.2), so guard rather than expand it unconditionally.
-  [[ ${#files[@]} -eq 0 ]] && return 0
-  extract_docker_images_from_files "${files[@]}"
 }
 
 case "${1:-}" in
