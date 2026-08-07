@@ -10,11 +10,15 @@ every task and workflow carries `parameter_meta`. Nine are worth calling out:
   (`ont_preset`, `"ont-r9"` or `"ont-r10"`, selects its preset) only when this array is
   non-empty. Leaving it `[]` skips ONT entirely rather than requiring a placeholder file.
 * **`estimated_haploid_genome_size_mb`** — default `3100` (Mb; ~3.1 Gb, human haploid), used
-  for NG50/LG50. In Mb rather than bp so the input itself stays a small literal: some
-  WDL/Cromwell versions fail to parse an `Int` literal above 2^31-1, whether written directly
-  in the WDL source or given as a JSON number in `inputs.json`. Safe to override from
-  `inputs.json` for that reason — the bp value used internally is only ever produced by a
-  runtime multiplication, which the same versions handle fine.
+  for NG50/LG50. Stays in Mb all the way down to `CalculateAssemblyStats`, which passes it to
+  `calN50.js`'s own `-L` flag as e.g. `3100m` rather than this project ever multiplying it out
+  to bp: that bp value (~3.1e9, ~6.2e9 for the combined hap1+hap2 call) exceeds a 32-bit signed
+  `Int` (2^31-1), which is what WDL's `Int` is backed by in this project's Cromwell, and doing
+  that multiplication ourselves — whether as a WDL literal, a WDL runtime expression, or in the
+  task's bash — silently overflows to the wrong (sometimes negative) value. `calN50.js`'s own
+  `-L` parser multiplies using JS's double-precision numbers, which has no such limit, so the
+  Mb-to-bp conversion is left entirely to it; the resulting `genome_size_for_NG50_bp` column in
+  `stats_*_tsv` is read back from `calN50.js`'s own log rather than recomputed.
 * **`cal_n50_script`** / **`summarize_script`** — this project's own vendored/authored
   helper scripts, passed in as plain `File` inputs rather than being baked into an image:
   `workflows/imports/calN50/calN50.js` and `workflows/scripts/summarize_evaluation.py`

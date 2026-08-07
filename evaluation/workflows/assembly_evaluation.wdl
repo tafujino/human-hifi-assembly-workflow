@@ -23,7 +23,7 @@ workflow AssemblyEvaluation {
     ont_preset: "HMM-Flagger preset for the ONT run, \"ont-r9\" or \"ont-r10\". Ignored unless ont_read_files is non-empty."
     reference_cdna_fasta: "Ensembl GRCh38 cDNA/transcript FASTA, mapped to both projection_reference_fasta and each haplotype for asmgene."
     projection_reference_fasta: "CHM13v2.0 FASTA, used both as the flagger annotation-projection reference and as the asmgene reference-side mapping target."
-    estimated_haploid_genome_size_mb: "Estimated per-haplotype genome size for NG50, in Mb (default: human haploid, ~3100 Mb = ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x the bp value derived from this."
+    estimated_haploid_genome_size_mb: "Estimated per-haplotype genome size for NG50, in Mb (default: human haploid, ~3100 Mb = ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x this. Kept in Mb all the way down to CalculateAssemblyStats, which passes it to calN50.js's own -L parser (e.g. '3100m') instead of this workflow multiplying it out to bp itself: the resulting bp value (~3.1e9, or ~6.2e9 combined) exceeds a 32-bit signed Int (2^31-1), which is what WDL's Int is backed by in this project's Cromwell, and used to silently overflow to a negative number when computed here."
     asmgene_min_identity: "Minimum identity for asmgene gene-completeness calls. Optional: when omitted, asmgene's own default (0.99) applies rather than a value this project imposes."
     bias_annotations_bed_array_to_be_projected: "CHM13 bias-annotation BEDs to project onto each haplotype (flagger). Optional but recommended."
     cntr_bed_to_be_projected: "CHM13 centromere BED to project onto each haplotype (flagger). Optional but recommended."
@@ -57,12 +57,11 @@ workflow AssemblyEvaluation {
 
     File projection_reference_fasta
 
-    # In Mb rather than bp: some WDL/Cromwell parser versions fail to parse an Int
-    # literal above 2^31-1 (Java/Scala Int overflow), whether written directly in the
-    # WDL source or given as a JSON number in inputs.json ("No coercion defined ...
-    # to 'Int'"). Keeping this input itself small sidesteps both; the bp value derived
-    # from it below is only ever produced by a runtime multiplication, which is not
-    # subject to the same literal-parsing bug.
+    # Stays in Mb throughout this workflow (see parameter_meta above): the bp value
+    # this represents (~3.1e9, ~6.2e9 combined) overflows a 32-bit signed Int whether
+    # produced from a literal or from a runtime multiplication, so it's never computed
+    # here -- CalculateAssemblyStats passes the Mb value straight to calN50.js's -L,
+    # which does the Mb->bp multiplication itself using JS double-precision arithmetic.
     Int estimated_haploid_genome_size_mb = 3100
 
     Float? asmgene_min_identity
@@ -91,7 +90,6 @@ workflow AssemblyEvaluation {
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
-  Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
 
   # Only a label for flagger output suffixes, not a knob: the version actually run is
   # whatever workflows/imports/flagger is pinned to. Deliberately a local, not a
@@ -105,21 +103,21 @@ workflow AssemblyEvaluation {
       assembly_fastas = [hap1_assembly_fasta],
       label = sample_name + ".hap1",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb
   }
   call stats_wf.CalculateAssemblyStats as ComputeStatsHap2 {
     input:
       assembly_fastas = [hap2_assembly_fasta],
       label = sample_name + ".hap2",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb
   }
   call stats_wf.CalculateAssemblyStats as ComputeStatsCombined {
     input:
       assembly_fastas = [hap1_assembly_fasta, hap2_assembly_fasta],
       label = sample_name + ".combined",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size * 2
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb * 2
   }
 
   ### 2. asmgene: single reference-side mapping, then per-hap mapping + evaluation

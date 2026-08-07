@@ -15,14 +15,14 @@ task CalculateAssemblyStats {
     assembly_fastas: "One or more FASTA files (plain or gzipped), concatenated before computing statistics. Pass both haplotypes to get combined stats."
     label: "Prefix used both in the output file name and as the 'label' column of the output TSV."
     cal_n50_script: "Vendored copy of lh3/calN50's calN50.js (workflows/imports/calN50), run under k8."
-    genome_size_for_ng50: "Denominator for NG50/LG50, in bp. Pass the per-haplotype genome size, or 2x that for a combined call."
+    genome_size_for_ng50_mb: "Denominator for NG50/LG50, in Mb. Pass the per-haplotype genome size, or 2x that for a combined call. Passed to calN50.js as e.g. '3100m' rather than converted to bp here: for a human-scale genome the bp value (~3.1e9) exceeds a 32-bit signed Int (2^31-1), which is what WDL's Int is backed by in this project's Cromwell -- computing it ourselves, in WDL or even in bash, would risk the same silent overflow/wraparound. calN50.js's own -L parser (parseNum(), which multiplies using JS's double-precision numbers) has no such limit, so the Mb-to-bp conversion is left entirely to it."
   }
 
   input {
     Array[File] assembly_fastas
     String label
     File cal_n50_script
-    Int genome_size_for_ng50
+    Int genome_size_for_ng50_mb
 
     # mobinasri/long_read_aligner:v1.1.0
     String docker = "mobinasri/long_read_aligner@sha256:f4332fb5cdff7454e5a56566627a7343d57a6c9f6f4a4e52966ef75fb28820f6"
@@ -46,7 +46,10 @@ task CalculateAssemblyStats {
     # the longest sequence (count=1), and "NL 50 <len> <count>" is N50/L50 (or
     # NG50/LG50 when -L is given, since -L replaces the denominator used for x%).
     k8 ~{cal_n50_script} assembly.fa > n_stats.txt
-    k8 ~{cal_n50_script} -L ~{genome_size_for_ng50} assembly.fa > ng_stats.txt
+    # "m" suffix (mega, x1e6): let calN50.js's own -L parser (parseNum(), which uses
+    # JS double-precision arithmetic) do the Mb->bp multiplication, rather than
+    # computing a ~3.1e9+ bp value ourselves -- that exceeds a 32-bit signed Int.
+    k8 ~{cal_n50_script} -L ~{genome_size_for_ng50_mb}m assembly.fa > ng_stats.txt
     seqkit stats -a -T assembly.fa > seqkit_stats.tsv
 
     TOTAL_LEN=$(awk '$1=="SZ"{print $2}' n_stats.txt)
@@ -58,10 +61,13 @@ task CalculateAssemblyStats {
     NG50=$(awk '$1=="NL" && $2==50{print $3; exit}' ng_stats.txt)
     LG50=$(awk '$1=="NL" && $2==50{print $4; exit}' ng_stats.txt)
     GC=$(awk -F'\t' 'NR==1{for(i=1;i<=NF;i++) if ($i=="GC(%)") c=i} NR==2{print $c}' seqkit_stats.tsv)
+    # calN50.js echoes the bp value it actually resolved from -L as a "GS" row;
+    # read that back rather than re-deriving Mb->bp ourselves.
+    GENOME_SIZE_BP=$(awk '$1=="GS"{print $2; exit}' ng_stats.txt)
 
     {
       printf "label\ttotal_length_bp\tnum_contigs\tlongest_contig_bp\tN50_bp\tL50\tNG50_bp\tLG50\tauN\tGC_percent\tgenome_size_for_NG50_bp\n"
-      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "~{label}" "${TOTAL_LEN}" "${NUM_CONTIGS}" "${LONGEST}" "${N50}" "${L50}" "${NG50}" "${LG50}" "${AUN}" "${GC}" "~{genome_size_for_ng50}"
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "~{label}" "${TOTAL_LEN}" "${NUM_CONTIGS}" "${LONGEST}" "${N50}" "${L50}" "${NG50}" "${LG50}" "${AUN}" "${GC}" "${GENOME_SIZE_BP}"
     } > "~{label}.assembly_stats.tsv"
   >>>
 
