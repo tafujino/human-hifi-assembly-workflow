@@ -38,6 +38,8 @@ workflow AssemblyEvaluation {
     flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy."
     flagger_enable_splitting_reads_equally: "Pass-through for flagger's own read-splitting knob (enableSplittingReadsEqually), applied to both the HiFi and ONT runs. When true, flagger concatenates readFiles and re-splits them into flagger_split_number equal-sized chunks before aligning, so alignment is scattered across chunks instead of running as one task per input read file. Off by default, matching flagger's own default; turn on to parallelize alignment when hifi_read_files/ont_read_files is a single (or few) large file(s)."
     flagger_split_number: "Pass-through for flagger's own chunk-count knob (splitNumber), applied to both the HiFi and ONT runs. Only takes effect when flagger_enable_splitting_reads_equally is true."
+    enable_running_secphase: "Pass-through for flagger's own enableRunningSecphase knob, applied to both the HiFi and ONT runs. When true, Secphase (read-to-haplotype phasing QC) runs during read mapping and its corrections are applied via correctBam before coverage is computed. Off by default, matching flagger's own default. If enabling this, consider also adding '-p0.5' to flagger's alignerOptions (not exposed here; would require a further pass-through) so more secondary alignments survive for Secphase to consider."
+    cntr_ct_bed_to_be_projected: "CHM13 centromere-transition ('ct') BED to project onto each haplotype (flagger), applied to both the HiFi and ONT runs. Optional; only refines cntr_bed_to_be_projected's projected boundaries and has no effect unless that input is also given."
   }
 
   input {
@@ -68,6 +70,7 @@ workflow AssemblyEvaluation {
     # --- CHM13 annotation projection (flagger; optional but recommended) ---
     Array[File] bias_annotations_bed_array_to_be_projected = []
     File? cntr_bed_to_be_projected
+    File? cntr_ct_bed_to_be_projected
     File? sd_bed_to_be_projected
     File? sex_bed_to_be_projected
     Array[File] annotations_bed_array_to_be_projected = []
@@ -83,6 +86,8 @@ workflow AssemblyEvaluation {
 
     Boolean flagger_enable_splitting_reads_equally = false
     Int flagger_split_number = 16
+
+    Boolean enable_running_secphase = false
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
@@ -173,9 +178,11 @@ workflow AssemblyEvaluation {
       projectionReferenceFasta = projection_reference_fasta,
       biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
       cntrBedToBeProjected = cntr_bed_to_be_projected,
+      cntrCtBedToBeProjected = cntr_ct_bed_to_be_projected,
       SDBedToBeProjected = sd_bed_to_be_projected,
       sexBedToBeProjected = sex_bed_to_be_projected,
-      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
+      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+      enableRunningSecphase = enable_running_secphase
   }
 
   ### 4. HMM-Flagger: ONT run (only if ont_read_files was supplied)
@@ -198,9 +205,11 @@ workflow AssemblyEvaluation {
         projectionReferenceFasta = projection_reference_fasta,
         biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
         cntrBedToBeProjected = cntr_bed_to_be_projected,
+        cntrCtBedToBeProjected = cntr_ct_bed_to_be_projected,
         SDBedToBeProjected = sd_bed_to_be_projected,
         sexBedToBeProjected = sex_bed_to_be_projected,
-        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
+        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+        enableRunningSecphase = enable_running_secphase
     }
   }
 
@@ -235,14 +244,84 @@ workflow AssemblyEvaluation {
     # HMM-Flagger (HiFi)
     File flagger_hifi_final_prediction_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1
     File flagger_hifi_final_prediction_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2
+    File flagger_hifi_final_prediction_bed = RunFlaggerHifi.finalPredictionBed
+    File flagger_hifi_intermediate_prediction_bed = RunFlaggerHifi.intermediatePredictionBed
+    File flagger_hifi_coverage_gz = RunFlaggerHifi.coverageGz
+    File flagger_hifi_bias_table_tsv = RunFlaggerHifi.biasTableTsv
+    File flagger_hifi_loglikelihood_tsv = RunFlaggerHifi.loglikelihoodTsv
     File flagger_hifi_full_stats_tsv = RunFlaggerHifi.fullStatsTsv
     File flagger_hifi_misc_files_tar_gz = RunFlaggerHifi.miscFlaggerFilesTarGz
+    File? flagger_hifi_benchmarking_summary_tsv = RunFlaggerHifi.benchmarkingSummaryTsv
+    File? flagger_hifi_contiguity_summary_tsv = RunFlaggerHifi.contiguitySummaryTsv
 
-    # HMM-Flagger (ONT, present only when ont_read_files was non-empty)
+    # HMM-Flagger (HiFi) conservative calls (present only when flagger's own
+    # enableCreatingConservativeBed is true, which is its default)
+    File? flagger_hifi_final_prediction_bed_conservative = RunFlaggerHifi.finalPredictionBedConservative
+    File? flagger_hifi_final_prediction_bed_conservative_hap1 = RunFlaggerHifi.finalPredictionBedConservativeHap1
+    File? flagger_hifi_final_prediction_bed_conservative_hap2 = RunFlaggerHifi.finalPredictionBedConservativeHap2
+    File? flagger_hifi_intermediate_prediction_bed_conservative = RunFlaggerHifi.intermediatePredictionBedConservative
+    File? flagger_hifi_benchmarking_summary_tsv_conservative = RunFlaggerHifi.benchmarkingSummaryTsvConservative
+    File? flagger_hifi_contiguity_summary_tsv_conservative = RunFlaggerHifi.contiguitySummaryTsvConservative
+    File? flagger_hifi_full_stats_tsv_conservative = RunFlaggerHifi.fullStatsTsvConservative
+
+    # HMM-Flagger (HiFi) projected annotations (present only when projection_reference_fasta
+    # and the corresponding *_to_be_projected input(s) were given)
+    File? flagger_hifi_projection_sex_bed = RunFlaggerHifi.projectionSexBed
+    File? flagger_hifi_projection_sd_bed = RunFlaggerHifi.projectionSDBed
+    File? flagger_hifi_projection_cntr_bed = RunFlaggerHifi.projectionCntrBed
+    Array[File]? flagger_hifi_projection_annotations_bed_array = RunFlaggerHifi.projectionAnnotationsBedArray
+    Array[File]? flagger_hifi_projection_bias_annotations_bed_array = RunFlaggerHifi.projectionBiasAnnotationsBedArray
+
+    # HMM-Flagger (HiFi) bigwig/mappable-region outputs (present only when flagger's own
+    # enableOutputtingBigWig is true, which is its default)
+    Array[File]? flagger_hifi_bigwig_array = RunFlaggerHifi.bigwigArray
+    File? flagger_hifi_mappable_hap1_bed = RunFlaggerHifi.mappableHap1Bed
+    File? flagger_hifi_mappable_hap2_bed = RunFlaggerHifi.mappableHap2Bed
+
+    # HMM-Flagger (HiFi) Secphase outputs (present only when enable_running_secphase is true)
+    File? flagger_hifi_secphase_output_log = RunFlaggerHifi.secphaseOutputLog
+    File? flagger_hifi_secphase_modified_read_blocks_markers_bed = RunFlaggerHifi.secphaseModifiedReadBlocksMarkersBed
+    File? flagger_hifi_secphase_marker_blocks_bed = RunFlaggerHifi.secphaseMarkerBlocksBed
+
+    # HMM-Flagger (ONT, present only when ont_read_files was non-empty; every field below is
+    # therefore File?/Array[File]? even where the HiFi equivalent above is a plain File)
     File? flagger_ont_final_prediction_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1
     File? flagger_ont_final_prediction_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2
+    File? flagger_ont_final_prediction_bed = RunFlaggerOnt.finalPredictionBed
+    File? flagger_ont_intermediate_prediction_bed = RunFlaggerOnt.intermediatePredictionBed
+    File? flagger_ont_coverage_gz = RunFlaggerOnt.coverageGz
+    File? flagger_ont_bias_table_tsv = RunFlaggerOnt.biasTableTsv
+    File? flagger_ont_loglikelihood_tsv = RunFlaggerOnt.loglikelihoodTsv
     File? flagger_ont_full_stats_tsv = RunFlaggerOnt.fullStatsTsv
     File? flagger_ont_misc_files_tar_gz = RunFlaggerOnt.miscFlaggerFilesTarGz
+    File? flagger_ont_benchmarking_summary_tsv = RunFlaggerOnt.benchmarkingSummaryTsv
+    File? flagger_ont_contiguity_summary_tsv = RunFlaggerOnt.contiguitySummaryTsv
+
+    # HMM-Flagger (ONT) conservative calls
+    File? flagger_ont_final_prediction_bed_conservative = RunFlaggerOnt.finalPredictionBedConservative
+    File? flagger_ont_final_prediction_bed_conservative_hap1 = RunFlaggerOnt.finalPredictionBedConservativeHap1
+    File? flagger_ont_final_prediction_bed_conservative_hap2 = RunFlaggerOnt.finalPredictionBedConservativeHap2
+    File? flagger_ont_intermediate_prediction_bed_conservative = RunFlaggerOnt.intermediatePredictionBedConservative
+    File? flagger_ont_benchmarking_summary_tsv_conservative = RunFlaggerOnt.benchmarkingSummaryTsvConservative
+    File? flagger_ont_contiguity_summary_tsv_conservative = RunFlaggerOnt.contiguitySummaryTsvConservative
+    File? flagger_ont_full_stats_tsv_conservative = RunFlaggerOnt.fullStatsTsvConservative
+
+    # HMM-Flagger (ONT) projected annotations
+    File? flagger_ont_projection_sex_bed = RunFlaggerOnt.projectionSexBed
+    File? flagger_ont_projection_sd_bed = RunFlaggerOnt.projectionSDBed
+    File? flagger_ont_projection_cntr_bed = RunFlaggerOnt.projectionCntrBed
+    Array[File]? flagger_ont_projection_annotations_bed_array = RunFlaggerOnt.projectionAnnotationsBedArray
+    Array[File]? flagger_ont_projection_bias_annotations_bed_array = RunFlaggerOnt.projectionBiasAnnotationsBedArray
+
+    # HMM-Flagger (ONT) bigwig/mappable-region outputs
+    Array[File]? flagger_ont_bigwig_array = RunFlaggerOnt.bigwigArray
+    File? flagger_ont_mappable_hap1_bed = RunFlaggerOnt.mappableHap1Bed
+    File? flagger_ont_mappable_hap2_bed = RunFlaggerOnt.mappableHap2Bed
+
+    # HMM-Flagger (ONT) Secphase outputs
+    File? flagger_ont_secphase_output_log = RunFlaggerOnt.secphaseOutputLog
+    File? flagger_ont_secphase_modified_read_blocks_markers_bed = RunFlaggerOnt.secphaseModifiedReadBlocksMarkersBed
+    File? flagger_ont_secphase_marker_blocks_bed = RunFlaggerOnt.secphaseMarkerBlocksBed
 
     # Final aggregate summary
     File assembly_evaluation_summary_tsv = SummarizeAssemblyEvaluation.summary_tsv

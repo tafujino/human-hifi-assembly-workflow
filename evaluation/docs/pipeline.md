@@ -3,7 +3,7 @@
 ## Inputs
 
 `miniwdl input_template evaluation/workflows/assembly_evaluation.wdl` lists every input, and
-every task and workflow carries `parameter_meta`. Eight are worth calling out:
+every task and workflow carries `parameter_meta`. Nine are worth calling out:
 
 * **`hifi_read_files`** — required; **`ont_read_files`** — optional, default `[]`. HiFi is
   always evaluated with HMM-Flagger; ONT triggers a second, independent HMM-Flagger run
@@ -22,11 +22,22 @@ every task and workflow carries `parameter_meta`. Eight are worth calling out:
   the top-level README.
 * **`hifi_alpha_tsv`** / **`ont_alpha_tsv`** and the CHM13 projection inputs
   (**`bias_annotations_bed_array_to_be_projected`**, **`cntr_bed_to_be_projected`**,
-  **`sd_bed_to_be_projected`**, **`sex_bed_to_be_projected`**,
-  **`annotations_bed_array_to_be_projected`**) — all optional overrides/annotations for the
-  vendored HMM-Flagger workflow. When given, they come from files already vendored inside
-  `workflows/imports/flagger/misc/` (see [example_inputs.md](example_inputs.md) for real
-  paths) rather than anything fetched separately.
+  **`cntr_ct_bed_to_be_projected`**, **`sd_bed_to_be_projected`**,
+  **`sex_bed_to_be_projected`**, **`annotations_bed_array_to_be_projected`**) — all optional
+  overrides/annotations for the vendored HMM-Flagger workflow. When given, they come from
+  files already vendored inside `workflows/imports/flagger/misc/` (see
+  [example_inputs.md](example_inputs.md) for real paths) rather than anything fetched
+  separately. `cntr_ct_bed_to_be_projected` (centromere-transition "ct" blocks) is the one
+  exception left out of `example_inputs.md`'s own recommended set: it does nothing on its
+  own and only refines `cntr_bed_to_be_projected`'s projected boundaries, so it's harmless to
+  add but easy to skip.
+* **`enable_running_secphase`** — pass-through for flagger's own `enableRunningSecphase`.
+  Off by default (matching flagger's own default). When turned on, Secphase runs as part of
+  read mapping and its read-to-haplotype phasing corrections (via `correctBam`) are applied
+  to the alignment before coverage is computed. `evaluation/docker/check_images.sh
+  --list-reachable` already lists the images this pulls in (`mobinasri/secphase`) regardless
+  of whether this input is turned on, since it walks the WDL call graph statically rather
+  than simulating which conditional branches a given input would take.
 * **`projection_reference_fasta`** — T2T-CHM13v2.0 FASTA, used both as flagger's
   annotation-projection reference and as asmgene's reference-side mapping target; see
   [chm13_reference.md](chm13_reference.md) for where to get it.
@@ -91,19 +102,69 @@ would miscount it as `full_dup` (false duplication).
 
 ### HMM-Flagger (misassembly detection)
 
+Every output below comes as a `flagger_hifi_*` (from the always-run HiFi pass) and a
+`flagger_ont_*` counterpart (from the ONT pass, present only when `ont_read_files` was
+non-empty). Because the ONT call is conditional, every `flagger_ont_*` output is
+`File?`/`Array[File]?` even where its HiFi counterpart is a plain `File`/`Array[File]`; the
+`_ont_` outputs all stay unset when no second run happened. Only the HiFi name is shown
+below — substitute `ont` for `hifi` for the ONT equivalent.
+
+These all come straight from the vendored `mobinasri/flagger` (`HMMFlaggerEndToEndWithMapping`)
+workflow, so file names inside each are whatever that workflow gives them, not something this
+project controls. Every output that workflow can produce is wired below except its
+read-to-assembly alignment BAM/BAI (`readAlignmentBam`/`readAlignmentBai`), which this project
+deliberately leaves unexposed.
+
+**Core prediction/coverage**
+
 | Output | Contents |
 | --- | --- |
-| `flagger_hifi_final_prediction_bed_hap1` / `_hap2` | Final per-base Err/Dup/Hap/Col prediction BED, HiFi run |
-| `flagger_hifi_full_stats_tsv` | HMM-Flagger's own full statistics table, HiFi run |
-| `flagger_hifi_misc_files_tar_gz` | Auxiliary files (coverage tracks, intermediate BEDs, ...), HiFi run |
-| `flagger_ont_final_prediction_bed_hap1` / `_hap2` | The same, ONT run |
-| `flagger_ont_full_stats_tsv` | The same, ONT run |
-| `flagger_ont_misc_files_tar_gz` | The same, ONT run |
+| `flagger_hifi_final_prediction_bed_hap1` / `_hap2` | Final per-base Err/Dup/Hap/Col prediction BED, per haplotype |
+| `flagger_hifi_final_prediction_bed` | The same, hap1+hap2 combined (diploid) |
+| `flagger_hifi_intermediate_prediction_bed` | The prediction BED before merging/filtering into the final one above |
+| `flagger_hifi_coverage_gz` | Per-window coverage, labeled with the predicted Err/Dup/Hap/Col state (`.cov.gz`) |
+| `flagger_hifi_bias_table_tsv` | Coverage-bias correction table |
+| `flagger_hifi_loglikelihood_tsv` | Log-likelihood per EM iteration |
+| `flagger_hifi_full_stats_tsv` | HMM-Flagger's own full statistics table |
+| `flagger_hifi_misc_files_tar_gz` | Auxiliary files (coverage tracks, intermediate BEDs, ...) |
+| `flagger_hifi_benchmarking_summary_tsv` / `flagger_hifi_contiguity_summary_tsv` | Only produced when a truth-misassembly BED is passed to flagger; this project doesn't expose that input, so these two stay unset for now |
 
-These come straight from the vendored `mobinasri/flagger` workflow, so their file names are
-whatever that workflow gives them rather than something this project controls. The `_ont_`
-outputs are all `File?` and stay unset when `ont_read_files` was empty, i.e. no second run
-happened.
+**Conservative calls** — a self-homology-filtered version of the core predictions above with
+fewer false-positive Dup/Col calls, produced whenever flagger's own
+`enableCreatingConservativeBed` is true (its default)
+
+| Output | Contents |
+| --- | --- |
+| `flagger_hifi_final_prediction_bed_conservative` / `_hap1` / `_hap2` | Conservative version of the final prediction BED(s) above |
+| `flagger_hifi_intermediate_prediction_bed_conservative` | Conservative version of the intermediate prediction BED |
+| `flagger_hifi_benchmarking_summary_tsv_conservative` / `flagger_hifi_contiguity_summary_tsv_conservative` / `flagger_hifi_full_stats_tsv_conservative` | Conservative-call statistics |
+
+**Projected annotations** — the CHM13-coordinate `*_to_be_projected` inputs, re-expressed in
+this haplotype's assembly coordinates; present only when `projection_reference_fasta` and the
+relevant `*_to_be_projected` input were given
+
+| Output | Contents |
+| --- | --- |
+| `flagger_hifi_projection_sex_bed` | `sex_bed_to_be_projected`, projected |
+| `flagger_hifi_projection_sd_bed` | `sd_bed_to_be_projected`, projected |
+| `flagger_hifi_projection_cntr_bed` | `cntr_bed_to_be_projected`, projected (boundary-refined using `cntr_ct_bed_to_be_projected` when that's also given) |
+| `flagger_hifi_projection_annotations_bed_array` | `annotations_bed_array_to_be_projected`, projected (one file per input BED) |
+| `flagger_hifi_projection_bias_annotations_bed_array` | `bias_annotations_bed_array_to_be_projected`, projected |
+
+**Bigwig / mappable-region outputs** — present whenever flagger's own
+`enableOutputtingBigWig` is true (its default)
+
+| Output | Contents |
+| --- | --- |
+| `flagger_hifi_bigwig_array` | Coverage tracks in bigwig format, for loading into IGV |
+| `flagger_hifi_mappable_hap1_bed` / `flagger_hifi_mappable_hap2_bed` | Regions of each haplotype with sufficient read mappability |
+
+**Secphase outputs** — present only when `enable_running_secphase` is true (off by default)
+
+| Output | Contents |
+| --- | --- |
+| `flagger_hifi_secphase_output_log` | Secphase's own log of read-to-haplotype phasing corrections |
+| `flagger_hifi_secphase_modified_read_blocks_markers_bed` / `flagger_hifi_secphase_marker_blocks_bed` | BEDs of the read blocks/markers Secphase used to detect mis-phased reads |
 
 ### Final aggregate summary
 
