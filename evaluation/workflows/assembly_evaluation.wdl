@@ -38,7 +38,7 @@ workflow AssemblyEvaluation {
     flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy."
     flagger_enable_splitting_reads_equally: "Pass-through for flagger's own read-splitting knob (enableSplittingReadsEqually), applied to both the HiFi and ONT runs. When true, flagger concatenates readFiles and re-splits them into flagger_split_number equal-sized chunks before aligning, so alignment is scattered across chunks instead of running as one task per input read file. Off by default, matching flagger's own default; turn on to parallelize alignment when hifi_read_files/ont_read_files is a single (or few) large file(s)."
     flagger_split_number: "Pass-through for flagger's own chunk-count knob (splitNumber), applied to both the HiFi and ONT runs. Only takes effect when flagger_enable_splitting_reads_equally is true."
-    enable_running_secphase: "Pass-through for flagger's own enableRunningSecphase knob, applied to both the HiFi and ONT runs. When true, Secphase (read-to-haplotype phasing QC) runs during read mapping and its corrections are applied via correctBam before coverage is computed. Off by default, matching flagger's own default. If enabling this, consider also adding '-p0.5' to flagger_aligner_options so more secondary alignments survive for Secphase to consider (see example_inputs.md for the recommended combination)."
+    enable_running_secphase: "Pass-through for flagger's own enableRunningSecphase knob, applied to both the HiFi and ONT runs. When true, Secphase (read-to-haplotype phasing QC) runs during read mapping and its corrections are applied via correctBam before coverage is computed. Off by default, matching flagger's own default. If enabling this, consider also adding '-p0.5' to flagger_aligner_options so more secondary alignments survive for Secphase to consider (see example_inputs.md for the recommended combination). flagger's own secphaseOptions knob (--hifi vs --ont, not exposed as a top-level input here) is hardcoded per call below to match each run's read type, since the HiFi and ONT runs are otherwise fully independent flagger invocations and secphaseOptions has no way to vary within a single call."
     flagger_aligner_options: "Pass-through for flagger's own alignerOptions knob, applied to both the HiFi and ONT runs. Defaults to flagger's own default ('--eqx --cs -Y -L -y -I8g'); the '-I8g' is required by flagger for diploid assemblies with minimap2/winnowmap. Relevant mainly when enable_running_secphase is true: flagger's README recommends adding '-p0.5' in that case, to keep more secondary alignments as candidates for Secphase."
     cntr_ct_bed_to_be_projected: "CHM13 centromere-transition ('ct') BED to project onto each haplotype (flagger), applied to both the HiFi and ONT runs. Optional; only refines cntr_bed_to_be_projected's projected boundaries and has no effect unless that input is also given."
   }
@@ -160,6 +160,13 @@ workflow AssemblyEvaluation {
   }
 
   ### 3. HMM-Flagger: HiFi run (always)
+  # kmerSize=19 below matches minimap2's own map-hifi preset (verified against minimap2's
+  # options.c/main.c: -x is always applied first, so flagger's shared kmerSize=15 default
+  # would otherwise silently downgrade map-hifi's own k=19 to 15). Not hardcoded for the ONT
+  # call below: map-ont's own preset value is already 15, so flagger's shared default is
+  # correct there as-is -- confirmed against flagger's own test fixture data, which pairs
+  # map-ont with kmer_size=15 (test_wdls/toil_on_slurm/.../data_table_test_1_template.csv),
+  # not the 17 that this vendored README's own parameter table (inconsistently) suggests.
   call flagger_wf.HMMFlaggerEndToEndWithMapping as RunFlaggerHifi {
     input:
       sampleName = sample_name,
@@ -183,7 +190,9 @@ workflow AssemblyEvaluation {
       sexBedToBeProjected = sex_bed_to_be_projected,
       annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
       enableRunningSecphase = enable_running_secphase,
-      alignerOptions = flagger_aligner_options
+      alignerOptions = flagger_aligner_options,
+      secphaseOptions = "--hifi",
+      kmerSize = 19
   }
 
   ### 4. HMM-Flagger: ONT run (only if ont_read_files was supplied)
@@ -211,7 +220,8 @@ workflow AssemblyEvaluation {
         sexBedToBeProjected = sex_bed_to_be_projected,
         annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
         enableRunningSecphase = enable_running_secphase,
-        alignerOptions = flagger_aligner_options
+        alignerOptions = flagger_aligner_options,
+        secphaseOptions = "--ont"
     }
   }
 
