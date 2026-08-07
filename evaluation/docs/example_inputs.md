@@ -44,6 +44,7 @@ and [chm13_reference.md](chm13_reference.md) for where to get each.
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/potential_biases/chm13v2.0_hor.bed"
   ],
   "AssemblyEvaluation.cntr_bed_to_be_projected": "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/censat/chm13v2.0_no_ct.bed",
+  "AssemblyEvaluation.cntr_ct_bed_to_be_projected": "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/censat/chm13v2.0_only_ct.bed",
   "AssemblyEvaluation.sd_bed_to_be_projected": "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/sd/chm13v2.0_SD.all.bed",
   "AssemblyEvaluation.sex_bed_to_be_projected": "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/sex/chm13v2.0_sex.bed",
   "AssemblyEvaluation.annotations_bed_array_to_be_projected": [
@@ -68,7 +69,7 @@ and [chm13_reference.md](chm13_reference.md) for where to get each.
 }
 ```
 
-`estimated_haploid_genome_size_mb` and `asmgene_min_identity` are deliberately left out: both
-are optional with defaults chosen to be reasonable already (see
-[pipeline.md](pipeline.md#inputs)), and omitting them here means those defaults keep applying
-without this file having to be kept in sync if the defaults ever change.
+`estimated_haploid_genome_size_mb`, `asmgene_min_identity`, and `enable_running_secphase` are
+deliberately left out: all three are optional with defaults chosen to be reasonable already
+(see [pipeline.md](pipeline.md#inputs)), and omitting them here means those defaults keep
+applying without this file having to be kept in sync if the defaults ever change.

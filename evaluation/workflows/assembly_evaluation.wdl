@@ -23,7 +23,7 @@ workflow AssemblyEvaluation {
     ont_preset: "HMM-Flagger preset for the ONT run, \"ont-r9\" or \"ont-r10\". Ignored unless ont_read_files is non-empty."
     reference_cdna_fasta: "Ensembl GRCh38 cDNA/transcript FASTA, mapped to both projection_reference_fasta and each haplotype for asmgene."
     projection_reference_fasta: "CHM13v2.0 FASTA, used both as the flagger annotation-projection reference and as the asmgene reference-side mapping target."
-    estimated_haploid_genome_size_mb: "Estimated per-haplotype genome size for NG50, in Mb (default: human haploid, ~3100 Mb = ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x the bp value derived from this."
+    estimated_haploid_genome_size_mb: "Estimated per-haplotype genome size for NG50, in Mb (default: human haploid, ~3100 Mb = ~3.1 Gb). The combined (hap1+hap2) stats call uses 2x this. Kept in Mb all the way down to CalculateAssemblyStats, which passes it to calN50.js's own -L parser (e.g. '3100m') instead of this workflow multiplying it out to bp itself: the resulting bp value (~3.1e9, or ~6.2e9 combined) exceeds a 32-bit signed Int (2^31-1), which is what WDL's Int is backed by in this project's Cromwell, and used to silently overflow to a negative number when computed here."
     asmgene_min_identity: "Minimum identity for asmgene gene-completeness calls. Optional: when omitted, asmgene's own default (0.99) applies rather than a value this project imposes."
     bias_annotations_bed_array_to_be_projected: "CHM13 bias-annotation BEDs to project onto each haplotype (flagger). Optional but recommended."
     cntr_bed_to_be_projected: "CHM13 centromere BED to project onto each haplotype (flagger). Optional but recommended."
@@ -38,6 +38,8 @@ workflow AssemblyEvaluation {
     flagger_hmm_memory_gb: "Pass-through for flagger's own HMM-Flagger memory knob (flaggerMemSize), applied to both the HiFi and ONT runs. Keep >=8 GB per this project's memory-floor policy."
     flagger_enable_splitting_reads_equally: "Pass-through for flagger's own read-splitting knob (enableSplittingReadsEqually), applied to both the HiFi and ONT runs. When true, flagger concatenates readFiles and re-splits them into flagger_split_number equal-sized chunks before aligning, so alignment is scattered across chunks instead of running as one task per input read file. Off by default, matching flagger's own default; turn on to parallelize alignment when hifi_read_files/ont_read_files is a single (or few) large file(s)."
     flagger_split_number: "Pass-through for flagger's own chunk-count knob (splitNumber), applied to both the HiFi and ONT runs. Only takes effect when flagger_enable_splitting_reads_equally is true."
+    enable_running_secphase: "Pass-through for flagger's own enableRunningSecphase knob, applied to both the HiFi and ONT runs. When true, Secphase (read-to-haplotype phasing QC) runs during read mapping and its corrections are applied via correctBam before coverage is computed. Off by default, matching flagger's own default. If enabling this, consider also adding '-p0.5' to flagger's alignerOptions (not exposed here; would require a further pass-through) so more secondary alignments survive for Secphase to consider."
+    cntr_ct_bed_to_be_projected: "CHM13 centromere-transition ('ct') BED to project onto each haplotype (flagger), applied to both the HiFi and ONT runs. Optional; only refines cntr_bed_to_be_projected's projected boundaries and has no effect unless that input is also given."
   }
 
   input {
@@ -55,12 +57,11 @@ workflow AssemblyEvaluation {
 
     File projection_reference_fasta
 
-    # In Mb rather than bp: some WDL/Cromwell parser versions fail to parse an Int
-    # literal above 2^31-1 (Java/Scala Int overflow), whether written directly in the
-    # WDL source or given as a JSON number in inputs.json ("No coercion defined ...
-    # to 'Int'"). Keeping this input itself small sidesteps both; the bp value derived
-    # from it below is only ever produced by a runtime multiplication, which is not
-    # subject to the same literal-parsing bug.
+    # Stays in Mb throughout this workflow (see parameter_meta above): the bp value
+    # this represents (~3.1e9, ~6.2e9 combined) overflows a 32-bit signed Int whether
+    # produced from a literal or from a runtime multiplication, so it's never computed
+    # here -- CalculateAssemblyStats passes the Mb value straight to calN50.js's -L,
+    # which does the Mb->bp multiplication itself using JS double-precision arithmetic.
     Int estimated_haploid_genome_size_mb = 3100
 
     Float? asmgene_min_identity
@@ -68,6 +69,7 @@ workflow AssemblyEvaluation {
     # --- CHM13 annotation projection (flagger; optional but recommended) ---
     Array[File] bias_annotations_bed_array_to_be_projected = []
     File? cntr_bed_to_be_projected
+    File? cntr_ct_bed_to_be_projected
     File? sd_bed_to_be_projected
     File? sex_bed_to_be_projected
     Array[File] annotations_bed_array_to_be_projected = []
@@ -83,10 +85,11 @@ workflow AssemblyEvaluation {
 
     Boolean flagger_enable_splitting_reads_equally = false
     Int flagger_split_number = 16
+
+    Boolean enable_running_secphase = false
   }
 
   Boolean has_ont_reads = length(ont_read_files) > 0
-  Int estimated_haploid_genome_size = estimated_haploid_genome_size_mb * 1000000
 
   # Only a label for flagger output suffixes, not a knob: the version actually run is
   # whatever workflows/imports/flagger is pinned to. Deliberately a local, not a
@@ -100,21 +103,21 @@ workflow AssemblyEvaluation {
       assembly_fastas = [hap1_assembly_fasta],
       label = sample_name + ".hap1",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb
   }
   call stats_wf.CalculateAssemblyStats as ComputeStatsHap2 {
     input:
       assembly_fastas = [hap2_assembly_fasta],
       label = sample_name + ".hap2",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb
   }
   call stats_wf.CalculateAssemblyStats as ComputeStatsCombined {
     input:
       assembly_fastas = [hap1_assembly_fasta, hap2_assembly_fasta],
       label = sample_name + ".combined",
       cal_n50_script = cal_n50_script,
-      genome_size_for_ng50 = estimated_haploid_genome_size * 2
+      genome_size_for_ng50_mb = estimated_haploid_genome_size_mb * 2
   }
 
   ### 2. asmgene: single reference-side mapping, then per-hap mapping + evaluation
@@ -173,9 +176,11 @@ workflow AssemblyEvaluation {
       projectionReferenceFasta = projection_reference_fasta,
       biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
       cntrBedToBeProjected = cntr_bed_to_be_projected,
+      cntrCtBedToBeProjected = cntr_ct_bed_to_be_projected,
       SDBedToBeProjected = sd_bed_to_be_projected,
       sexBedToBeProjected = sex_bed_to_be_projected,
-      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
+      annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+      enableRunningSecphase = enable_running_secphase
   }
 
   ### 4. HMM-Flagger: ONT run (only if ont_read_files was supplied)
@@ -198,9 +203,11 @@ workflow AssemblyEvaluation {
         projectionReferenceFasta = projection_reference_fasta,
         biasAnnotationsBedArrayToBeProjected = bias_annotations_bed_array_to_be_projected,
         cntrBedToBeProjected = cntr_bed_to_be_projected,
+        cntrCtBedToBeProjected = cntr_ct_bed_to_be_projected,
         SDBedToBeProjected = sd_bed_to_be_projected,
         sexBedToBeProjected = sex_bed_to_be_projected,
-        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected
+        annotationsBedArrayToBeProjected = annotations_bed_array_to_be_projected,
+        enableRunningSecphase = enable_running_secphase
     }
   }
 
@@ -235,14 +242,64 @@ workflow AssemblyEvaluation {
     # HMM-Flagger (HiFi)
     File flagger_hifi_final_prediction_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1
     File flagger_hifi_final_prediction_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2
+    File flagger_hifi_final_prediction_bed = RunFlaggerHifi.finalPredictionBed
     File flagger_hifi_full_stats_tsv = RunFlaggerHifi.fullStatsTsv
-    File flagger_hifi_misc_files_tar_gz = RunFlaggerHifi.miscFlaggerFilesTarGz
 
-    # HMM-Flagger (ONT, present only when ont_read_files was non-empty)
+    # HMM-Flagger (HiFi) conservative calls (present only when flagger's own
+    # enableCreatingConservativeBed is true, which is its default)
+    File? flagger_hifi_final_prediction_bed_conservative = RunFlaggerHifi.finalPredictionBedConservative
+    File? flagger_hifi_final_prediction_bed_conservative_hap1 = RunFlaggerHifi.finalPredictionBedConservativeHap1
+    File? flagger_hifi_final_prediction_bed_conservative_hap2 = RunFlaggerHifi.finalPredictionBedConservativeHap2
+    File? flagger_hifi_full_stats_tsv_conservative = RunFlaggerHifi.fullStatsTsvConservative
+
+    # HMM-Flagger (HiFi) projected annotations (present only when projection_reference_fasta
+    # and the corresponding *_to_be_projected input(s) were given)
+    File? flagger_hifi_projection_sex_bed = RunFlaggerHifi.projectionSexBed
+    File? flagger_hifi_projection_sd_bed = RunFlaggerHifi.projectionSDBed
+    File? flagger_hifi_projection_cntr_bed = RunFlaggerHifi.projectionCntrBed
+    Array[File]? flagger_hifi_projection_annotations_bed_array = RunFlaggerHifi.projectionAnnotationsBedArray
+    Array[File]? flagger_hifi_projection_bias_annotations_bed_array = RunFlaggerHifi.projectionBiasAnnotationsBedArray
+
+    # HMM-Flagger (HiFi) bigwig/mappable-region outputs (present only when flagger's own
+    # enableOutputtingBigWig is true, which is its default)
+    Array[File]? flagger_hifi_bigwig_array = RunFlaggerHifi.bigwigArray
+    File? flagger_hifi_mappable_hap1_bed = RunFlaggerHifi.mappableHap1Bed
+    File? flagger_hifi_mappable_hap2_bed = RunFlaggerHifi.mappableHap2Bed
+
+    # HMM-Flagger (HiFi) Secphase outputs (present only when enable_running_secphase is true)
+    File? flagger_hifi_secphase_output_log = RunFlaggerHifi.secphaseOutputLog
+    File? flagger_hifi_secphase_modified_read_blocks_markers_bed = RunFlaggerHifi.secphaseModifiedReadBlocksMarkersBed
+    File? flagger_hifi_secphase_marker_blocks_bed = RunFlaggerHifi.secphaseMarkerBlocksBed
+
+    # HMM-Flagger (ONT, present only when ont_read_files was non-empty; every field below is
+    # therefore File?/Array[File]? even where the HiFi equivalent above is a plain File)
     File? flagger_ont_final_prediction_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1
     File? flagger_ont_final_prediction_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2
+    File? flagger_ont_final_prediction_bed = RunFlaggerOnt.finalPredictionBed
     File? flagger_ont_full_stats_tsv = RunFlaggerOnt.fullStatsTsv
-    File? flagger_ont_misc_files_tar_gz = RunFlaggerOnt.miscFlaggerFilesTarGz
+
+    # HMM-Flagger (ONT) conservative calls
+    File? flagger_ont_final_prediction_bed_conservative = RunFlaggerOnt.finalPredictionBedConservative
+    File? flagger_ont_final_prediction_bed_conservative_hap1 = RunFlaggerOnt.finalPredictionBedConservativeHap1
+    File? flagger_ont_final_prediction_bed_conservative_hap2 = RunFlaggerOnt.finalPredictionBedConservativeHap2
+    File? flagger_ont_full_stats_tsv_conservative = RunFlaggerOnt.fullStatsTsvConservative
+
+    # HMM-Flagger (ONT) projected annotations
+    File? flagger_ont_projection_sex_bed = RunFlaggerOnt.projectionSexBed
+    File? flagger_ont_projection_sd_bed = RunFlaggerOnt.projectionSDBed
+    File? flagger_ont_projection_cntr_bed = RunFlaggerOnt.projectionCntrBed
+    Array[File]? flagger_ont_projection_annotations_bed_array = RunFlaggerOnt.projectionAnnotationsBedArray
+    Array[File]? flagger_ont_projection_bias_annotations_bed_array = RunFlaggerOnt.projectionBiasAnnotationsBedArray
+
+    # HMM-Flagger (ONT) bigwig/mappable-region outputs
+    Array[File]? flagger_ont_bigwig_array = RunFlaggerOnt.bigwigArray
+    File? flagger_ont_mappable_hap1_bed = RunFlaggerOnt.mappableHap1Bed
+    File? flagger_ont_mappable_hap2_bed = RunFlaggerOnt.mappableHap2Bed
+
+    # HMM-Flagger (ONT) Secphase outputs
+    File? flagger_ont_secphase_output_log = RunFlaggerOnt.secphaseOutputLog
+    File? flagger_ont_secphase_modified_read_blocks_markers_bed = RunFlaggerOnt.secphaseModifiedReadBlocksMarkersBed
+    File? flagger_ont_secphase_marker_blocks_bed = RunFlaggerOnt.secphaseMarkerBlocksBed
 
     # Final aggregate summary
     File assembly_evaluation_summary_tsv = SummarizeAssemblyEvaluation.summary_tsv
