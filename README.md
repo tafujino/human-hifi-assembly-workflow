@@ -21,12 +21,15 @@ HiFi unaligned BAMs and is the entry point. It runs:
    it runs concurrently with step 6 rather than after it. `assemble_mitogenome` skips this
    (task `SkipMitoAssembly` stands in)
 6. **Assembly** — `hifiasm_assembly.wdl`. Optionally uses Oxford Nanopore ultra-long
-   reads via `--ul`
+   reads via `--ul`, and optionally trio binning (`-1`/`-2`) instead of hifiasm's default
+   HiFi-only phasing when both `paternal_illumina_fastq` and `maternal_illumina_fastq` are
+   given; their yak databases are built first by `yak_count.wdl`
 7. **Mitochondrial contig removal** — `mito_contig_removal.wdl`, workflow
    `RemoveMitoFromHaplotypes`. Removes mitochondrial contigs from the nuclear haplotypes,
    BLASTing them against the mitogenome from step 5
 8. **chrX/chrY partitioning** — `partition_sexchr.wdl`, yak `sexchr` plus `groupxy.pl`.
-   Male samples only
+   Male samples only, and skipped when step 6 used trio binning, since that already assigns
+   hap1/hap2 by parent
 9. **Mitogenome reinsertion** — `add_mito_to_assembly.wdl`, task `AddMitoToHap2`. Appends
    the mitogenome from step 5 to hap2 as a contig named `chrM`. Last, because partitioning
    would otherwise be free to move it to hap1

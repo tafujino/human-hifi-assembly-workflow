@@ -10,10 +10,27 @@ version 1.0
 ## default and is normally reliable. Supply a value only to override an inference that is
 ## known to be wrong: the option changes how aggressively duplicate haplotigs are purged,
 ## so a worse estimate than hifiasm's own makes the assembly worse.
+##
+## paternal_yak/maternal_yak are optional and switch hifiasm from its default HiFi-only
+## phasing to trio binning (-1/-2), which uses each parent's yak k-mer database to assign
+## reads to a haplotype outright instead of inferring phase from the child's reads alone.
+## Both must be given together or neither (yak_count.wdl and validate_inputs.wdl enforce
+## this before the assembly ever starts); hifiasm's -1 is always the paternal haplotype and
+## becomes hap1 here, and -2/maternal becomes hap2. This combines safely with --ul and
+## --dual-scaf in one invocation on the hifiasm version pinned below -- confirmed against
+## its source (Overlaps.cpp) and README, and by the author directly
+## (https://github.com/chhylp123/hifiasm/issues/815) -- so this task does not need the
+## multi-step --bin-only staging that older hifiasm versions required.
+##
+## The two modes name their output GFAs differently: trio binning produces
+## "<prefix>.dip.hap1/2.p_ctg.gfa", while the default HiFi-only phasing produces
+## "<prefix>.bp.hap1/2.p_ctg.gfa" (confirmed in the same source read above; --dual-scaf does
+## not change either name). Which one is expected is therefore determined by whether
+## paternal_yak/maternal_yak were given, not discovered after the fact.
 
 task HifiasmAssembly {
   meta {
-    description: "Assembles a diploid genome from HiFi reads with hifiasm, optionally integrating Oxford Nanopore ultra-long reads, and emits the hap1/hap2 contigs as FASTA."
+    description: "Assembles a diploid genome from HiFi reads with hifiasm, optionally integrating Oxford Nanopore ultra-long reads and/or parental yak databases for trio binning, and emits the hap1/hap2 contigs as FASTA."
   }
 
   parameter_meta {
@@ -22,6 +39,8 @@ task HifiasmAssembly {
     hom_cov: "Homozygous coverage for --hom-cov. Leave undefined to let hifiasm infer it, which is the recommended default; see the note at the top of this file."
     ont_ul_fastq: "Zero or more Oxford Nanopore ultra-long read files for --ul, joined with a comma; hifiasm merges them itself. Leave empty for a HiFi-only assembly."
     ul_cut: "Minimum ultra-long read length for --ul-cut. Only meaningful together with ont_ul_fastq."
+    paternal_yak: "Paternal yak k-mer database for hifiasm's -1, from yak_count.wdl's YakCount. Leave undefined for hifiasm's default HiFi-only phasing; see the note at the top of this file. Must be given together with maternal_yak."
+    maternal_yak: "Maternal yak k-mer database for hifiasm's -2. Must be given together with paternal_yak."
     docker: "hifiasm image, pinned by digest. Must be 0.19.9 or newer: --telo-m does not exist before that and hifiasm exits non-zero on an unknown option."
     cpu: "Threads for hifiasm's -t."
     memory_gb: "Memory reservation. A human HiFi assembly peaks well above 128 GB, and --ul pushes it higher still, so the default is deliberately generous; an OOM here costs the whole run."
@@ -34,12 +53,14 @@ task HifiasmAssembly {
     Int? hom_cov
     Array[File] ont_ul_fastq = []
     Int? ul_cut
+    File? paternal_yak
+    File? maternal_yak
 
     # quay.io/biocontainers/hifiasm:0.25.0--h5ca1c30_0
     String docker = "quay.io/biocontainers/hifiasm@sha256:5dc4c88cabceb56445f44e785dae252e13fb8131e9bde54028bfb4102a3f424d"
     Int cpu = 32
     Int memory_gb = 256
-    Int disk_gb = 10 * ceil(size(fastq, "GB") + size(ont_ul_fastq, "GB")) + 50
+    Int disk_gb = 10 * ceil(size(fastq, "GB") + size(ont_ul_fastq, "GB") + size(paternal_yak, "GB") + size(maternal_yak, "GB")) + 50
   }
 
   command <<<
@@ -55,15 +76,28 @@ task HifiasmAssembly {
       ~{"--hom-cov " + hom_cov} \
       ~{if length(ont_ul_fastq) > 0 then "--ul " else ""}~{sep=',' ont_ul_fastq} \
       ~{"--ul-cut " + ul_cut} \
+      ~{"-1 " + paternal_yak} \
+      ~{"-2 " + maternal_yak} \
       ~{fastq} 2>&1 | tee ~{output_prefix}.hifiasm.log
 
-    awk '$1=="S"{print ">"$2; print $3}' ~{output_prefix}.bp.hap1.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap1.p_ctg.fasta.gz
-    awk '$1=="S"{print ">"$2; print $3}' ~{output_prefix}.bp.hap2.p_ctg.gfa | gzip -c > ~{output_prefix}.bp.hap2.p_ctg.fasta.gz
+    # Trio binning (paternal_yak/maternal_yak given) names its output
+    # "<prefix>.dip.hap1/2.p_ctg.gfa"; the default HiFi-only phasing names it
+    # "<prefix>.bp.hap1/2.p_ctg.gfa". See the note at the top of this file.
+    if [[ -n "~{paternal_yak}~{maternal_yak}" ]]; then
+      hap1_gfa=~{output_prefix}.dip.hap1.p_ctg.gfa
+      hap2_gfa=~{output_prefix}.dip.hap2.p_ctg.gfa
+    else
+      hap1_gfa=~{output_prefix}.bp.hap1.p_ctg.gfa
+      hap2_gfa=~{output_prefix}.bp.hap2.p_ctg.gfa
+    fi
+
+    awk '$1=="S"{print ">"$2; print $3}' "$hap1_gfa" | gzip -c > ~{output_prefix}.hap1.p_ctg.fasta.gz
+    awk '$1=="S"{print ">"$2; print $3}' "$hap2_gfa" | gzip -c > ~{output_prefix}.hap2.p_ctg.fasta.gz
   >>>
 
   output {
-    File hap1_contigs_fasta_gz = "~{output_prefix}.bp.hap1.p_ctg.fasta.gz"
-    File hap2_contigs_fasta_gz = "~{output_prefix}.bp.hap2.p_ctg.fasta.gz"
+    File hap1_contigs_fasta_gz = "~{output_prefix}.hap1.p_ctg.fasta.gz"
+    File hap2_contigs_fasta_gz = "~{output_prefix}.hap2.p_ctg.fasta.gz"
     File hifiasm_log = "~{output_prefix}.hifiasm.log"
   }
 

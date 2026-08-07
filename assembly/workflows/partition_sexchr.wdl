@@ -24,6 +24,13 @@ version 1.0
 ## would only reject a malformed sample_sex after the multi-day assembly had already run.
 ## See hifi_assembly.wdl.
 ##
+## It is also skipped, unconditionally, when hifiasm was given trio binning: hifiasm's own
+## -1/-2 phasing already assigns hap1 to the paternal (chrY-carrying) haplotype and hap2 to
+## the maternal one directly from the parents' k-mer databases, which is exactly what this
+## re-sort exists to achieve for HiFi-only phasing. Re-running it on top would be redundant
+## at best, so callers pass skip_when_trio_binned rather than this sub-workflow trying to
+## infer trio use from its own inputs.
+##
 ## groupxy.pl assigns every contig to hap1 or hap2 by comparing its chrY-specific and
 ## chrX-specific k-mer counts:
 ##
@@ -42,11 +49,12 @@ version 1.0
 
 workflow PartitionSexchr {
   meta {
-    description: "Reassigns assembly contigs between hap1 and hap2 according to their chrX/chrY k-mer content, for male samples only. Female samples are passed through unchanged. Takes an already-validated is_male flag; validate_inputs.wdl's ValidateInputs derives it from sample_sex before the assembly."
+    description: "Reassigns assembly contigs between hap1 and hap2 according to their chrX/chrY k-mer content, for male samples only, and only when hifiasm was not run with trio binning. Female samples and trio-binned samples are passed through unchanged. Takes an already-validated is_male flag; validate_inputs.wdl's ValidateInputs derives it from sample_sex before the assembly."
   }
 
   parameter_meta {
     is_male: "Whether the sample is male, i.e. ValidateInputs.is_male. False skips the partitioning entirely; see the note at the top of this file."
+    skip_when_trio_binned: "Whether hifiasm was run with trio binning, i.e. HifiAssembly's use_trio_binning. True skips the partitioning entirely regardless of is_male; see the note at the top of this file."
     hap1_fasta_gz: "hap1 contigs, gzipped."
     hap2_fasta_gz: "hap2 contigs, gzipped."
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository."
@@ -57,6 +65,7 @@ workflow PartitionSexchr {
 
   input {
     Boolean is_male
+    Boolean skip_when_trio_binned
     File hap1_fasta_gz
     File hap2_fasta_gz
     File chrY_no_par_yak
@@ -65,7 +74,7 @@ workflow PartitionSexchr {
     String output_prefix
   }
 
-  if (is_male) {
+  if (is_male && !skip_when_trio_binned) {
     call YakSexchrPartition as PartitionSexChr {
       input:
         hap1_fasta_gz = hap1_fasta_gz,
@@ -87,15 +96,16 @@ workflow PartitionSexchr {
   }
 
   output {
-    # Undefined for female samples, where no yak sexchr run takes place.
+    # Undefined for female samples and trio-binned samples, where no yak sexchr run takes
+    # place.
     File? sexchr_cnt = PartitionSexChr.sexchr_cnt
     File? sexchr_grouped = PartitionSexChr.sexchr_grouped
     File? hap1_contig_ids = PartitionSexChr.hap1_contig_ids
     File? hap2_contig_ids = PartitionSexChr.hap2_contig_ids
 
-    # For female samples these fall back to the inputs, so the file names stay
-    # ".no_mito.fasta.gz" instead of ".groupxy.fasta.gz" -- i.e. the output name
-    # itself records whether partitioning was applied.
+    # When partitioning did not run (female sample or trio binning) these fall back to the
+    # inputs, so the file names stay ".no_mito.fasta.gz" instead of ".groupxy.fasta.gz" --
+    # i.e. the output name itself records whether partitioning was applied.
     File new_hap1_fasta_gz = select_first([ExtractPartitionedFasta.new_hap1_fasta_gz, hap1_fasta_gz])
     File new_hap2_fasta_gz = select_first([ExtractPartitionedFasta.new_hap2_fasta_gz, hap2_fasta_gz])
   }

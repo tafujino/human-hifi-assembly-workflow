@@ -7,7 +7,10 @@ version 1.0
 ## anywhere: a gzipped mitogenome reference made MitoHiFi fail only after it had streamed
 ## the whole read set through minimap2, and a mitogenome reference holding more than one
 ## record silently changed what mito_contig_removal.wdl removes rather than failing at all.
-## Both are cheap to detect and expensive to discover.
+## Both are cheap to detect and expensive to discover. Likewise, giving only one parent's
+## reads for trio binning would otherwise surface as a confusing hifiasm error (or worse,
+## a hifiasm run that ignores the lone yak database) hours into the assembly rather than
+## immediately.
 ##
 ## It runs as a single task, called from hifi_assembly.wdl before anything expensive, for
 ## two reasons. It depends on nothing that has to be computed, so it starts immediately and
@@ -31,7 +34,7 @@ version 1.0
 
 task ValidateInputs {
   meta {
-    description: "Rejects malformed sample_name, sample_sex and mitogenome references up front, reporting every problem found rather than only the first, and returns sample_sex as a Boolean."
+    description: "Rejects malformed sample_name, sample_sex, mitogenome references and trio read counts up front, reporting every problem found rather than only the first, and returns sample_sex as a Boolean."
   }
 
   parameter_meta {
@@ -39,6 +42,8 @@ task ValidateInputs {
     sample_sex: "\"male\" or \"female\", case-insensitive. Anything else is an error rather than a silent fallback."
     mito_reference_fasta: "Closely related mitogenome in FASTA. Must be plain text and hold exactly one record."
     mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
+    paternal_illumina_fastq_count: "length(paternal_illumina_fastq) from the caller, i.e. a count rather than the files themselves: this task must not depend on trio read files being localized, since it is meant to fail in the run's first seconds regardless of their size. Must be zero exactly when maternal_illumina_fastq_count is zero; trio binning needs both parents or neither."
+    maternal_illumina_fastq_count: "length(maternal_illumina_fastq) from the caller. See paternal_illumina_fastq_count."
   }
 
   input {
@@ -46,6 +51,8 @@ task ValidateInputs {
     String sample_sex
     File mito_reference_fasta
     File mito_reference_gb
+    Int paternal_illumina_fastq_count
+    Int maternal_illumina_fastq_count
 
     # ubuntu:24.04
     String docker = "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
@@ -142,6 +149,16 @@ task ValidateInputs {
     elif ! awk '/^LOCUS/ { found = 1; exit } NR >= 20 { exit } END { exit(found ? 0 : 1) }' \
            ~{mito_reference_gb}; then
       fail 'mito_reference_gb does not look like a GenBank flat file (no LOCUS line in its first 20 lines)'
+    fi
+
+    # ---- trio read counts ---------------------------------------------------------------
+    # hifiasm's trio binning (-1/-2) needs both parents' yak databases or neither; a count
+    # rather than the files themselves, so this task keeps depending on nothing that has to
+    # be localized, let alone assembled -- see the header comment.
+    if [[ ~{paternal_illumina_fastq_count} -eq 0 && ~{maternal_illumina_fastq_count} -gt 0 ]]; then
+      fail 'maternal_illumina_fastq was given without paternal_illumina_fastq; trio binning needs both parents'
+    elif [[ ~{paternal_illumina_fastq_count} -gt 0 && ~{maternal_illumina_fastq_count} -eq 0 ]]; then
+      fail 'paternal_illumina_fastq was given without maternal_illumina_fastq; trio binning needs both parents'
     fi
 
     if [[ "$errors" -gt 0 ]]; then

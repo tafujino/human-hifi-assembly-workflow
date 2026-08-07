@@ -4,7 +4,7 @@
 
 `miniwdl input_template assembly/workflows/hifi_assembly.wdl` lists the required inputs, and every
 workflow and task carries `parameter_meta`, so `womtool inputs` and `miniwdl describe`
-explain each one. Seven are worth calling out:
+explain each one. Eight are worth calling out:
 
 * **`sample_sex`** — `"male"` or `"female"`, case-insensitive, and required. yak's
   chrX/chrY partitioning is only meaningful for male samples; applied to a female
@@ -25,6 +25,15 @@ explain each one. Seven are worth calling out:
   when the assembly fails on its own. The assembled mitogenome, when there is one, is always
   delivered both on its own and as a `chrM` contig at the end of hap2; see
   [mitochondrial.md](mitochondrial.md).
+* **`paternal_illumina_fastq` / `maternal_illumina_fastq`** — optional, and only meaningful
+  together: give both to switch hifiasm from its default HiFi-only phasing to trio binning
+  (`-1`/`-2`), or omit both for the default. Giving only one is rejected by `ValidateInputs`
+  rather than silently falling back to HiFi-only phasing. Each parent's yak k-mer database
+  is built from these reads by `yak_count.wdl` (`YakCount`) before the assembly starts.
+  With trio binning, hifiasm's own convention makes hap1 the paternal haplotype and hap2 the
+  maternal one, and chrX/chrY partitioning (below) is skipped as redundant — trio binning
+  already assigns hap1/hap2 by parent, which is what that partitioning exists to achieve for
+  HiFi-only phasing. `trio_binning_used` in the outputs records which mode ran.
 * **`override_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
   statistics and `genome_size_mb` instead. Leave it off unless hifiasm's own inference is
@@ -49,13 +58,14 @@ explain each one. Seven are worth calling out:
 
 | Output | File | Contents |
 | --- | --- | --- |
-| `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples, chrX/chrY-partitioned |
+| `hap1_contigs_fasta_gz` | `<sample>.hap1.groupxy.fasta.gz` | Final hap1 contigs: mitochondria-free and, for male samples not trio-binned, chrX/chrY-partitioned |
 | `hap2_contigs_fasta_gz` | `<sample>.hap2.groupxy.fasta.gz` | Final hap2 contigs, ending in the assembled mitogenome as a contig named `chrM` |
 | `chrM_in_hap2` | — | Whether hap2 really ends in a `chrM`; false when no mitogenome was assembled |
-| `sexchr_grouped` | `<sample>.sexchr_grouped.txt` | Which haplotype each contig came from and which it ended up in; male samples only |
+| `trio_binning_used` | — | Whether hifiasm ran with trio binning instead of its default HiFi-only phasing; see `paternal_illumina_fastq` above |
+| `sexchr_grouped` | `<sample>.sexchr_grouped.txt` | Which haplotype each contig came from and which it ended up in; male samples not trio-binned only |
 
-For a female sample the partitioning step is skipped, so these fall through to
-`<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`, and
+For a female sample, or any trio-binned sample, the partitioning step is skipped, so these
+fall through to `<sample>.hap1.no_mito.fasta.gz` and `<sample>.hap2.no_mito.fasta.gz`, and
 `sexchr_grouped` is absent. The file name therefore records whether partitioning was
 applied — and, for that reason, does *not* change when `chrM` is appended to hap2, which is
 what `chrM_in_hap2` is for. Only hap2 receives the mitogenome, so hap1 gets no `chrM` — which
@@ -64,7 +74,12 @@ keeps some. [mitochondrial.md](mitochondrial.md) explains why hap2, why last, an
 what removal leaves behind.
 
 hifiasm runs with `--dual-scaf`, which scaffolds each haplotype using the other, so these
-are scaffolds rather than strictly contigs and may contain N runs of up to 3 Mb.
+are scaffolds rather than strictly contigs and may contain N runs of up to 3 Mb. This holds
+in both phasing modes.
+
+With trio binning, hap1/hap2 above are already the paternal/maternal haplotypes by hifiasm's
+own convention, so no further partitioning is needed or applied — `sexchr_grouped` reflects
+this HiFi-only-phasing-specific step, not the final assignment in that case.
 
 `sexchr_grouped` is `groupxy.pl`'s output, one row per contig. Three of its columns matter:
 column 2 is the contig, column 3 the haplotype hifiasm assigned it to, and column 4 the

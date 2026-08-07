@@ -22,16 +22,22 @@ version 1.0
 ##      mitogenome as nothing to use, so turning it off also means hap2 gets no chrM
 ##   6. performs genome assembly with hifiasm (using the --ul option together with one or
 ##      more Oxford Nanopore ultra-long read files if given, and computing each one's
-##      statistics with seqkit_stats.wdl (SeqkitStats))
+##      statistics with seqkit_stats.wdl (SeqkitStats)). If both paternal_illumina_fastq and
+##      maternal_illumina_fastq are given, their yak k-mer databases are built first with
+##      yak_count.wdl (YakCount) and hifiasm is run with trio binning (-1/-2) instead of its
+##      default HiFi-only phasing; hap1 is then the paternal haplotype and hap2 the maternal
+##      one, by hifiasm's own convention. Both parental read sets or neither is required;
+##      validate_inputs.wdl checks this up front (step 0)
 ##   7. identifies and removes mitochondrial-derived contigs from the hifiasm hap1/hap2
 ##      contigs, using mito_contig_removal.wdl (RemoveMitoFromHaplotypes), with the
 ##      mitogenome from step 5 as the BLAST subject. NUMTs and short mitochondrial fragments
 ##      are deliberately kept (see mito_contig_removal.wdl)
 ##   8. reassigns the (mitochondria-free) hifiasm hap1/hap2 contigs based on their chrX/chrY
 ##      assignment using partition_sexchr.wdl (PartitionSexchr). This step only applies to
-##      male samples, so sample_sex must be given; for female samples the contigs are passed
-##      through unchanged (see partition_sexchr.wdl for why). The is_male flag it takes comes
-##      from step 0.
+##      male samples that were not trio-binned in step 6 -- trio binning already assigns hap1/
+##      hap2 by parent, which makes this reassignment redundant -- so sample_sex must be
+##      given; samples this does not apply to have their contigs passed through unchanged
+##      (see partition_sexchr.wdl for why). The is_male flag it takes comes from step 0
 ##   9. puts the mitogenome from step 5 back into hap2 as a contig named chrM, using
 ##      add_mito_to_assembly.wdl (AddMitoToHap2). Without this the delivered haplotypes
 ##      contain no mtDNA at all; see that file for why hap2, and why after step 8.
@@ -45,6 +51,7 @@ import "bam2fastq.wdl" as bam2fastq_wf
 import "cutadapt_trim.wdl" as cutadapt_wf
 import "seqkit_stats.wdl" as seqkit_wf
 import "estimate_hom_coverage.wdl" as estimate_hom_coverage_wf
+import "yak_count.wdl" as yak_count_wf
 import "hifiasm_assembly.wdl" as hifiasm_assembly_wf
 import "mitohifi_assembly.wdl" as mitohifi_assembly_wf
 import "mito_contig_removal.wdl" as mito_contig_removal_wf
@@ -54,7 +61,7 @@ import "rename_contigs_pansn.wdl" as rename_pansn_wf
 
 workflow HifiAssembly {
   meta {
-    description: "End-to-end phased diploid assembly of a human sample from a PacBio HiFi unaligned BAM: BAM to FASTQ, adapter and primer removal, hifiasm assembly, mitochondrial contig removal, and chrX/chrY partitioning."
+    description: "End-to-end phased diploid assembly of a human sample from a PacBio HiFi unaligned BAM: BAM to FASTQ, adapter and primer removal, hifiasm assembly (optionally with trio binning from parental Illumina reads), mitochondrial contig removal, and chrX/chrY partitioning."
   }
 
   parameter_meta {
@@ -63,6 +70,8 @@ workflow HifiAssembly {
     unaligned_bams: "One or more PacBio HiFi unaligned BAMs, typically one per SMRT cell. They are merged into a single read set, and a .pbi is created for each during the run. Supplying the same BAM twice is rejected rather than doubling its reads."
     ont_ul_fastq: "Zero or more Oxford Nanopore ultra-long read files. Given, they are integrated with hifiasm's --ul (which merges them itself) and each file's statistics are reported as well."
     ul_cut: "Minimum ultra-long read length for hifiasm's --ul-cut. Only meaningful together with ont_ul_fastq."
+    paternal_illumina_fastq: "Paternal Illumina reads, for hifiasm's trio binning. Must be given together with maternal_illumina_fastq, or omitted together with it for hifiasm's default HiFi-only phasing. When given, chrX/chrY partitioning (step 8) is skipped, since trio binning already assigns hap1/hap2 by parent; see partition_sexchr.wdl."
+    maternal_illumina_fastq: "Maternal Illumina reads. Must be given together with paternal_illumina_fastq."
     assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
     override_hom_cov: "Override hifiasm's own homozygous-coverage inference with a value derived from the trimmed read statistics instead. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
     genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless override_hom_cov is set."
@@ -85,6 +94,11 @@ workflow HifiAssembly {
     Array[File]+ unaligned_bams
     Array[File] ont_ul_fastq = []
     Int? ul_cut
+    # Both empty by default, for hifiasm's default HiFi-only phasing. Given together, hifiasm
+    # is run with trio binning instead (-1/-2), and chrX/chrY partitioning (step 8) is
+    # skipped as redundant. validate_inputs.wdl rejects giving only one of the two.
+    Array[File] paternal_illumina_fastq = []
+    Array[File] maternal_illumina_fastq = []
     # Whether to assemble the mitogenome at all. On by default. Turn it off only by
     # exception (e.g. a MitoHiFi dependency misbehaving on this HPC) -- see
     # mitohifi_assembly.wdl's SkipMitoAssembly for what stands in when it is off.
@@ -129,8 +143,16 @@ workflow HifiAssembly {
       sample_name = sample_name,
       sample_sex = sample_sex,
       mito_reference_fasta = mito_reference_fasta,
-      mito_reference_gb = mito_reference_gb
+      mito_reference_gb = mito_reference_gb,
+      paternal_illumina_fastq_count = length(paternal_illumina_fastq),
+      maternal_illumina_fastq_count = length(maternal_illumina_fastq)
   }
+
+  # True when trio binning was requested; both-or-neither is already guaranteed by
+  # ValidateInputs above, so checking one array is enough. Declared once here so every
+  # consumer below (the yak-building step, HifiasmAssembly, and PartitionSexchr's redundancy
+  # skip) reads the same value.
+  Boolean use_trio_binning = length(paternal_illumina_fastq) > 0
 
   call bam2fastq_wf.BamToFastq as ConvertBamToFastq {
     input:
@@ -203,6 +225,22 @@ workflow HifiAssembly {
   File mito_contigs_stats_any = select_first([AssembleMito.contigs_stats, SkipMito.contigs_stats])
   File mitohifi_log_any = select_first([AssembleMito.mitohifi_log, SkipMito.mitohifi_log])
 
+  # Depends on nothing but the parental reads themselves, so this runs concurrently with
+  # the trimming and mitogenome-assembly steps above rather than after them.
+  if (use_trio_binning) {
+    call yak_count_wf.YakCount as BuildPaternalYak {
+      input:
+        fastq = paternal_illumina_fastq,
+        output_prefix = sample_name + ".paternal"
+    }
+
+    call yak_count_wf.YakCount as BuildMaternalYak {
+      input:
+        fastq = maternal_illumina_fastq,
+        output_prefix = sample_name + ".maternal"
+    }
+  }
+
   call hifiasm_assembly_wf.HifiasmAssembly as HifiasmAssembly {
     input:
       fastq = TrimAdapters.trimmed_fastq,
@@ -210,7 +248,10 @@ workflow HifiAssembly {
       # Undefined unless override_hom_cov was set, in which case hifiasm omits --hom-cov.
       hom_cov = EstimateHomCoverage.hom_cov,
       ont_ul_fastq = ont_ul_fastq,
-      ul_cut = ul_cut
+      ul_cut = ul_cut,
+      # Both undefined unless use_trio_binning, in which case hifiasm omits -1/-2.
+      paternal_yak = BuildPaternalYak.yak,
+      maternal_yak = BuildMaternalYak.yak
   }
 
   call mito_contig_removal_wf.RemoveMitoFromHaplotypes as RemoveMito {
@@ -225,6 +266,7 @@ workflow HifiAssembly {
   call partition_sexchr_wf.PartitionSexchr as PartitionSexchr {
     input:
       is_male = ValidateInputs.is_male,
+      skip_when_trio_binned = use_trio_binning,
       hap1_fasta_gz = RemoveMito.hap1_no_mito_fasta_gz,
       hap2_fasta_gz = RemoveMito.hap2_no_mito_fasta_gz,
       chrY_no_par_yak = chrY_no_par_yak,
@@ -261,6 +303,13 @@ workflow HifiAssembly {
     Array[File] ont_ul_read_stats = ComputeOntUlReadStats.stats
 
     File hifiasm_log = HifiasmAssembly.hifiasm_log
+
+    # Whether hifiasm was run with trio binning (-1/-2) instead of its default HiFi-only
+    # phasing. When true, hap1/hap2 below are the paternal/maternal haplotypes respectively,
+    # and sexchr_grouped is absent because PartitionSexchr was skipped as redundant. Named
+    # differently from the use_trio_binning declared above to avoid colliding with it, the
+    # same reason mito_assembly_status_any carries its "_any" suffix.
+    Boolean trio_binning_used = use_trio_binning
 
     # mitohifi.py's log, which is where the mapped and filtered read counts are; see
     # mitohifi_assembly.wdl on why those two numbers matter. Empty when assemble_mitogenome
@@ -302,7 +351,8 @@ workflow HifiAssembly {
     # wholesale, and this is the only record of what happened -- the same reason the
     # mitochondrial summary TSVs above are delivered. The yak count file and the two ID
     # lists derived from this one are not, since they add nothing this does not already say.
-    # Absent for female samples, where no partitioning takes place.
+    # Absent for female samples and trio-binned samples, where no partitioning takes place;
+    # see trio_binning_used above.
     File? sexchr_grouped = PartitionSexchr.sexchr_grouped
   }
 }
