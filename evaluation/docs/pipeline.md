@@ -33,7 +33,11 @@ every task and workflow carries `parameter_meta`. Nine are worth calling out:
   to the alignment before coverage is computed. `evaluation/docker/check_images.sh
   --list-reachable` already lists the images this pulls in (`mobinasri/secphase`) regardless
   of whether this input is turned on, since it walks the WDL call graph statically rather
-  than simulating which conditional branches a given input would take.
+  than simulating which conditional branches a given input would take. flagger's README
+  recommends pairing this with `-p0.5` added to **`flagger_aligner_options`** (pass-through
+  for flagger's own `alignerOptions`, default `--eqx --cs -Y -L -y -I8g`) so more secondary
+  alignments survive as candidates for Secphase; see [example_inputs.md](example_inputs.md)
+  for that combination spelled out.
 * **`projection_reference_fasta`** — T2T-CHM13v2.0 FASTA, used both as flagger's
   annotation-projection reference and as asmgene's reference-side mapping target; see
   [chm13_reference.md](chm13_reference.md) for where to get it.
