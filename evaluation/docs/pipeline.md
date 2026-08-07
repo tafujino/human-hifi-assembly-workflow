@@ -43,13 +43,22 @@ every task and workflow carries `parameter_meta`. Nine are worth calling out:
   [chm13_reference.md](chm13_reference.md) for where to get it.
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
   friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
-  through to both the HiFi and ONT runs. Kept at or above this project's 8 GB memory floor.
-  These two are the only vendored flagger memory knobs exposed this way. Some other
+  through to both the HiFi and ONT runs. Both defaults simply mirror flagger's own defaults
+  for these two workflow-level inputs (`alignerMemSize=48` in `long_read_aligner_scattered.wdl`,
+  `flaggerMemSize=32` in `hmm_flagger_end_to_end.wdl`) rather than changing them — at these
+  defaults the pass-through is a no-op, existing purely so a user can raise either from
+  `inputs.json` if a real run needs more. (`alignerMemSize` is *not* the same thing as the
+  underlying `alignmentBam` task's own separate 64 GB default: `long_read_aligner_scattered.wdl`
+  always explicitly binds `memSize = alignerMemSize` at its one call site, so that task-level
+  64 GB default is dead code in this call graph and 48 GB is what actually runs.) Kept at or
+  above this project's 8 GB memory floor. These two are the only vendored flagger memory knobs
+  exposed this way. Some other
   flagger-internal tasks (e.g. three of the six annotation-projection calls inside
   `runProjectBlocksForFlagger` -- `projectSex`/`projectCntr`/`projectCntrCt`, unlike
   `projectBiasedBlocks`/`projectSD`/`projectAdditional`, which already hardcode `memSize=32`
-  at the call site) still run at their low vendored memory default with no pass-through here,
-  and — unlike the two above — this **cannot** be raised from `inputs.json` at all: Cromwell
+  at the call site) still run at their low vendored memory default (8 GB — already at this
+  project's memory floor, just lower than the 32 GB the other three get) with no pass-through
+  here, and — unlike the two above — this **cannot** be raised from `inputs.json` at all: Cromwell
   rejects a fully-qualified override targeting a nested call input that no intermediate
   workflow declares as its own (`Unexpected input provided: ...`, confirmed against this
   project's own Cromwell). `workflows/imports/flagger` points at `tafujino/flagger`, a fork
