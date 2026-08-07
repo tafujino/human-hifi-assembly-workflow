@@ -120,9 +120,15 @@ below — substitute `ont` for `hifi` for the ONT equivalent.
 
 These all come straight from the vendored `mobinasri/flagger` (`HMMFlaggerEndToEndWithMapping`)
 workflow, so file names inside each are whatever that workflow gives them, not something this
-project controls. Every output that workflow can produce is wired below except its
-read-to-assembly alignment BAM/BAI (`readAlignmentBam`/`readAlignmentBai`), which this project
-deliberately leaves unexposed.
+project controls. Not every output that workflow can produce is wired below: its
+read-to-assembly alignment BAM/BAI (`readAlignmentBam`/`readAlignmentBai`) is deliberately left
+unexposed; `benchmarkingSummaryTsv`/`contiguitySummaryTsv` (plus their conservative variants)
+only get populated when a truth-misassembly BED is passed to flagger, which this project doesn't
+expose as an input, so those would always come back unset and aren't wired; and
+`intermediatePredictionBed(Conservative)`, `coverageGz`, `biasTableTsv`, `loglikelihoodTsv`, and
+`miscFlaggerFilesTarGz` are intermediate/diagnostic files that a normal assembly-QC workflow
+doesn't need (superseded by the final prediction BED and full-stats TSV), so they're
+deliberately left unwired too.
 
 **Core prediction/coverage**
 
@@ -130,13 +136,7 @@ deliberately leaves unexposed.
 | --- | --- |
 | `flagger_hifi_final_prediction_bed_hap1` / `_hap2` | Final per-base Err/Dup/Hap/Col prediction BED, per haplotype |
 | `flagger_hifi_final_prediction_bed` | The same, hap1+hap2 combined (diploid) |
-| `flagger_hifi_intermediate_prediction_bed` | The prediction BED before merging/filtering into the final one above |
-| `flagger_hifi_coverage_gz` | Per-window coverage, labeled with the predicted Err/Dup/Hap/Col state (`.cov.gz`) |
-| `flagger_hifi_bias_table_tsv` | Coverage-bias correction table |
-| `flagger_hifi_loglikelihood_tsv` | Log-likelihood per EM iteration |
 | `flagger_hifi_full_stats_tsv` | HMM-Flagger's own full statistics table |
-| `flagger_hifi_misc_files_tar_gz` | Auxiliary files (coverage tracks, intermediate BEDs, ...) |
-| `flagger_hifi_benchmarking_summary_tsv` / `flagger_hifi_contiguity_summary_tsv` | Only produced when a truth-misassembly BED is passed to flagger; this project doesn't expose that input, so these two stay unset for now |
 
 **Conservative calls** — a self-homology-filtered version of the core predictions above with
 fewer false-positive Dup/Col calls, produced whenever flagger's own
@@ -145,8 +145,7 @@ fewer false-positive Dup/Col calls, produced whenever flagger's own
 | Output | Contents |
 | --- | --- |
 | `flagger_hifi_final_prediction_bed_conservative` / `_hap1` / `_hap2` | Conservative version of the final prediction BED(s) above |
-| `flagger_hifi_intermediate_prediction_bed_conservative` | Conservative version of the intermediate prediction BED |
-| `flagger_hifi_benchmarking_summary_tsv_conservative` / `flagger_hifi_contiguity_summary_tsv_conservative` / `flagger_hifi_full_stats_tsv_conservative` | Conservative-call statistics |
+| `flagger_hifi_full_stats_tsv_conservative` | Conservative-call statistics |
 
 **Projected annotations** — the CHM13-coordinate `*_to_be_projected` inputs, re-expressed in
 this haplotype's assembly coordinates; present only when `projection_reference_fasta` and the

@@ -245,23 +245,13 @@ workflow AssemblyEvaluation {
     File flagger_hifi_final_prediction_bed_hap1 = RunFlaggerHifi.finalPredictionBedHap1
     File flagger_hifi_final_prediction_bed_hap2 = RunFlaggerHifi.finalPredictionBedHap2
     File flagger_hifi_final_prediction_bed = RunFlaggerHifi.finalPredictionBed
-    File flagger_hifi_intermediate_prediction_bed = RunFlaggerHifi.intermediatePredictionBed
-    File flagger_hifi_coverage_gz = RunFlaggerHifi.coverageGz
-    File flagger_hifi_bias_table_tsv = RunFlaggerHifi.biasTableTsv
-    File flagger_hifi_loglikelihood_tsv = RunFlaggerHifi.loglikelihoodTsv
     File flagger_hifi_full_stats_tsv = RunFlaggerHifi.fullStatsTsv
-    File flagger_hifi_misc_files_tar_gz = RunFlaggerHifi.miscFlaggerFilesTarGz
-    File? flagger_hifi_benchmarking_summary_tsv = RunFlaggerHifi.benchmarkingSummaryTsv
-    File? flagger_hifi_contiguity_summary_tsv = RunFlaggerHifi.contiguitySummaryTsv
 
     # HMM-Flagger (HiFi) conservative calls (present only when flagger's own
     # enableCreatingConservativeBed is true, which is its default)
     File? flagger_hifi_final_prediction_bed_conservative = RunFlaggerHifi.finalPredictionBedConservative
     File? flagger_hifi_final_prediction_bed_conservative_hap1 = RunFlaggerHifi.finalPredictionBedConservativeHap1
     File? flagger_hifi_final_prediction_bed_conservative_hap2 = RunFlaggerHifi.finalPredictionBedConservativeHap2
-    File? flagger_hifi_intermediate_prediction_bed_conservative = RunFlaggerHifi.intermediatePredictionBedConservative
-    File? flagger_hifi_benchmarking_summary_tsv_conservative = RunFlaggerHifi.benchmarkingSummaryTsvConservative
-    File? flagger_hifi_contiguity_summary_tsv_conservative = RunFlaggerHifi.contiguitySummaryTsvConservative
     File? flagger_hifi_full_stats_tsv_conservative = RunFlaggerHifi.fullStatsTsvConservative
 
     # HMM-Flagger (HiFi) projected annotations (present only when projection_reference_fasta
@@ -288,22 +278,12 @@ workflow AssemblyEvaluation {
     File? flagger_ont_final_prediction_bed_hap1 = RunFlaggerOnt.finalPredictionBedHap1
     File? flagger_ont_final_prediction_bed_hap2 = RunFlaggerOnt.finalPredictionBedHap2
     File? flagger_ont_final_prediction_bed = RunFlaggerOnt.finalPredictionBed
-    File? flagger_ont_intermediate_prediction_bed = RunFlaggerOnt.intermediatePredictionBed
-    File? flagger_ont_coverage_gz = RunFlaggerOnt.coverageGz
-    File? flagger_ont_bias_table_tsv = RunFlaggerOnt.biasTableTsv
-    File? flagger_ont_loglikelihood_tsv = RunFlaggerOnt.loglikelihoodTsv
     File? flagger_ont_full_stats_tsv = RunFlaggerOnt.fullStatsTsv
-    File? flagger_ont_misc_files_tar_gz = RunFlaggerOnt.miscFlaggerFilesTarGz
-    File? flagger_ont_benchmarking_summary_tsv = RunFlaggerOnt.benchmarkingSummaryTsv
-    File? flagger_ont_contiguity_summary_tsv = RunFlaggerOnt.contiguitySummaryTsv
 
     # HMM-Flagger (ONT) conservative calls
     File? flagger_ont_final_prediction_bed_conservative = RunFlaggerOnt.finalPredictionBedConservative
     File? flagger_ont_final_prediction_bed_conservative_hap1 = RunFlaggerOnt.finalPredictionBedConservativeHap1
     File? flagger_ont_final_prediction_bed_conservative_hap2 = RunFlaggerOnt.finalPredictionBedConservativeHap2
-    File? flagger_ont_intermediate_prediction_bed_conservative = RunFlaggerOnt.intermediatePredictionBedConservative
-    File? flagger_ont_benchmarking_summary_tsv_conservative = RunFlaggerOnt.benchmarkingSummaryTsvConservative
-    File? flagger_ont_contiguity_summary_tsv_conservative = RunFlaggerOnt.contiguitySummaryTsvConservative
     File? flagger_ont_full_stats_tsv_conservative = RunFlaggerOnt.fullStatsTsvConservative
 
     # HMM-Flagger (ONT) projected annotations
