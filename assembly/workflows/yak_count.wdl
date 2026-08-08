@@ -39,7 +39,7 @@ task YakCount {
     # if you publish it to your own registry instead.
     String docker = "quay.io/tafujino/yak:0.1"
     Int cpu = 16
-    Int memory_gb = 32
+    Int memory_gb = 128
     Int disk_gb = 4 * ceil(size(fastq, "GB")) + 20
   }
 
