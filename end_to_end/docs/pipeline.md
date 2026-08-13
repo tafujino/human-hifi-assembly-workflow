@@ -47,3 +47,8 @@ collision between the two sets, so nothing is renamed or prefixed here.
 Same as the evaluation pipeline: `git submodule update --init --recursive` first, since this
 workflow imports `assembly_evaluation.wdl`, which imports the vendored flagger submodule. See
 the top-level [README.md](../../README.md#setup).
+
+## Further documentation
+
+* [validation.md](validation.md) — what is checked, locally and in CI (this project
+  introduces no images or tests of its own; see that document for why)

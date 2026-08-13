@@ -8,12 +8,14 @@ locally for that project, and links back here for the CI picture.
 ## `.github/workflows/validate-wdl.yml`
 
 Triggered on pushes and pull requests touching `assembly/workflows/**`,
-`evaluation/workflows/**`, either project's `check_images.sh`, or `scripts/registry_lib.sh`.
+`evaluation/workflows/**`, `end_to_end/workflows/**`, either of the first two projects'
+`check_images.sh`, or `scripts/registry_lib.sh`.
 
 | Job | Runs | Covers |
 | --- | --- | --- |
 | `check-assembly` | `miniwdl check` over every `assembly/workflows/*.wdl` | assembly |
 | `check-evaluation` | The same over `evaluation/workflows/*.wdl` (checkout with `submodules: recursive` — `assembly_evaluation.wdl` imports the vendored flagger submodule, which `miniwdl check` needs actually checked out to resolve) | evaluation |
+| `check-end-to-end` | The same over `end_to_end/workflows/*.wdl` (also `submodules: recursive` — `end_to_end_assembly.wdl` imports `assembly_evaluation.wdl`, which imports the same vendored flagger submodule, transitively) | end-to-end |
 | `images-assembly` | `assembly/docker/check_images.sh` | assembly |
 | `images-evaluation` | `evaluation/docker/check_images.sh` | evaluation |
 | `test-evaluation` | `python3 -m unittest discover -s evaluation/workflows/scripts/tests` | evaluation |
@@ -27,10 +29,17 @@ nothing in `assembly/workflows/` has script logic that isn't already exercised b
 `miniwdl check` plus the image checks above (the one exception, `mito-blast-filter`, has its
 own test suite run separately by `build-docker-images.yml` below, not by this workflow).
 
+end-to-end has no `images-end-to-end`/`test-end-to-end` job: it introduces no tasks or images
+of its own, only calls into `HifiAssembly` and `AssemblyEvaluation`, so `check-end-to-end`
+(which resolves through both sub-workflows' imports) is already everything there is to check
+that isn't already covered by the `check-assembly`/`check-evaluation`/`images-*`/`test-evaluation`
+jobs above.
+
 ## `.github/workflows/build-docker-images.yml`
 
 Assembly-only: evaluation vendors flagger/calN50 as git submodules rather than building
-anything of its own, so it has no equivalent workflow.
+anything of its own, and end-to-end adds no tasks either, so neither has an equivalent
+workflow.
 
 Triggered on pushes touching `assembly/docker/**` or `scripts/registry_lib.sh`. Discovers
 every `assembly/docker/<name>/` containing a `Dockerfile`, then builds and pushes each with
@@ -46,5 +55,6 @@ running on `main`, so a build from `dev` or a topic branch can never move that t
 * [container-image-pinning.md](container-image-pinning.md) — the shared image-pinning policy
   these jobs enforce
 * [assembly/docs/validation.md](../assembly/docs/validation.md),
-  [evaluation/docs/validation.md](../evaluation/docs/validation.md) — how to run each
-  project's checks locally, and that project's own test suite
+  [evaluation/docs/validation.md](../evaluation/docs/validation.md),
+  [end_to_end/docs/validation.md](../end_to_end/docs/validation.md) — how to run each
+  project's checks locally, and that project's own test suite (where it has one)
