@@ -19,17 +19,16 @@ their own `check-assembly`/`check-evaluation` jobs) or in the wiring between the
 `miniwdl check` above already type-checks (e.g. that `hap1_assembly_fasta` really is a
 `File`, that `hifi_read_files` really is an `Array[File]`).
 
-There is a test suite, though: `workflows/scripts/generate_inputs.py` and
-`workflows/scripts/fetch_resources.py` (see [generate_inputs.md](generate_inputs.md)) are
-real script logic this project does introduce, unlike the WDL itself.
+There is a test suite, though: `workflows/scripts/generate_inputs.py` (see
+[generate_inputs.md](generate_inputs.md)) is real script logic this project does introduce,
+unlike the WDL itself. It builds on `../../scripts/input_generation_common.py` and
+`../../scripts/fetch_resources.py`, shared with `evaluation`'s own generator and covered by
+their own top-level test suite instead (see
+[../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).
 
 ```sh
 python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
 ```
-
-One test in there (`RealRepoConstantsTest`) also needs the vendored submodules checked out
-(same requirement as `miniwdl check` above), since it checks `generate_inputs.py`'s hardcoded
-flagger/calN50 paths against what is actually vendored; it skips itself otherwise.
 
 ## In CI
 

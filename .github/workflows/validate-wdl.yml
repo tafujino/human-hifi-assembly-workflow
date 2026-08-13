@@ -10,6 +10,9 @@ on:
       - 'evaluation/docker/check_images.sh'
       - 'end_to_end/workflows/**'
       - 'scripts/registry_lib.sh'
+      - 'scripts/input_generation_common.py'
+      - 'scripts/fetch_resources.py'
+      - 'scripts/tests/**'
       - '.github/workflows/validate-wdl.yml'
   pull_request:
     paths:
@@ -19,6 +22,9 @@ on:
       - 'evaluation/docker/check_images.sh'
       - 'end_to_end/workflows/**'
       - 'scripts/registry_lib.sh'
+      - 'scripts/input_generation_common.py'
+      - 'scripts/fetch_resources.py'
+      - 'scripts/tests/**'
       - '.github/workflows/validate-wdl.yml'
   workflow_dispatch: {}
 
@@ -129,15 +135,29 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run summarize_evaluation.py unit tests
+      - name: Run summarize_evaluation.py / generate_inputs.py unit tests
         run: python3 -m unittest discover -s evaluation/workflows/scripts/tests -v
 
   test-end-to-end:
     name: unit tests (end_to_end scripts)
     runs-on: ubuntu-latest
     steps:
-      # recursive: RealRepoConstantsTest checks generate_inputs.py's hardcoded flagger/calN50
-      # paths against what is actually vendored, which needs those submodules checked out.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run generate_inputs.py unit tests
+        run: python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
+
+  test-shared-scripts:
+    name: unit tests (shared scripts)
+    runs-on: ubuntu-latest
+    steps:
+      # recursive: RealRepoConstantsTest checks input_generation_common.py's hardcoded
+      # flagger/calN50 paths against what is actually vendored, which needs those submodules
+      # checked out.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -146,5 +166,5 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run generate_inputs.py / fetch_resources.py unit tests
-        run: python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
+      - name: Run input_generation_common.py / fetch_resources.py unit tests
+        run: python3 -m unittest discover -s scripts/tests -v

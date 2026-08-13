@@ -2,11 +2,11 @@
 """Unit tests for ../generate_inputs.py.
 
 Run with: python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
-(also run by CI's test-end-to-end job). RealRepoConstantsTest needs
-`git submodule update --init --recursive` first (see README.md#setup); it skips itself if
-the flagger submodule isn't checked out.
+(also run by CI's test-end-to-end job). Covers this project's own sample sheet validation
+(sample_sex required, at least one unaligned_bam, trio pairing) and EndToEndAssembly-shaped
+build_inputs() output; the shared sample sheet/site config/repo-path mechanics underneath are
+covered once by scripts/tests/test_input_generation_common.py instead of here.
 """
-import json
 import os
 import sys
 import tempfile
@@ -21,38 +21,6 @@ def touch(path):
   path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text("x")
   return path
-
-
-def write_json(path, obj):
-  path.parent.mkdir(parents=True, exist_ok=True)
-  path.write_text(json.dumps(obj))
-  return path
-
-
-class LoadSiteConfigTest(unittest.TestCase):
-  def test_loads_valid_config(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      config = {key: str(touch(d / f"{key}.bin")) for key in gi.SITE_CONFIG_KEYS}
-      config_path = write_json(d / "site_config.json", config)
-      loaded = gi.load_site_config(config_path)
-      self.assertEqual(set(loaded), set(gi.SITE_CONFIG_KEYS))
-
-  def test_missing_key_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      config = {key: str(touch(d / f"{key}.bin")) for key in gi.SITE_CONFIG_KEYS if key != "par_yak"}
-      config_path = write_json(d / "site_config.json", config)
-      with self.assertRaisesRegex(ValueError, "par_yak"):
-        gi.load_site_config(config_path)
-
-  def test_nonexistent_file_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      config = {key: str(d / f"{key}.bin") for key in gi.SITE_CONFIG_KEYS}  # never written
-      config_path = write_json(d / "site_config.json", config)
-      with self.assertRaises(ValueError):
-        gi.load_site_config(config_path)
 
 
 class LoadSampleSheetTest(unittest.TestCase):
@@ -82,18 +50,6 @@ class LoadSampleSheetTest(unittest.TestCase):
       self.assertEqual(s["ont_ul_fastq"], [str(ont)])
       self.assertEqual(s["paternal_illumina_fastq"], [])
 
-  def test_two_samples_are_kept_independent(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      bam_a, bam_b = touch(d / "a.bam"), touch(d / "b.bam")
-      sheet = self._sheet(d, [
-        ("HG002", "male", "", "unaligned_bam", str(bam_a)),
-        ("HG005", "female", "", "unaligned_bam", str(bam_b)),
-      ])
-      samples = gi.load_sample_sheet(sheet)
-      self.assertEqual([s["sample_name"] for s in samples], ["HG002", "HG005"])
-      self.assertEqual(samples[1]["sample_sex"], "female")
-
   def test_missing_unaligned_bam_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
@@ -102,34 +58,12 @@ class LoadSampleSheetTest(unittest.TestCase):
       with self.assertRaisesRegex(ValueError, "unaligned_bam"):
         gi.load_sample_sheet(sheet)
 
-  def test_inconsistent_sample_sex_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      bam = touch(d / "a.bam")
-      sheet = self._sheet(d, [
-        ("HG002", "male", "", "unaligned_bam", str(bam)),
-        ("HG002", "female", "", "unaligned_bam", str(bam)),
-      ])
-      with self.assertRaisesRegex(ValueError, "sample_sex"):
-        gi.load_sample_sheet(sheet)
-
   def test_missing_sample_sex_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       bam = touch(d / "a.bam")
       sheet = self._sheet(d, [("HG002", "", "", "unaligned_bam", str(bam))])
       with self.assertRaisesRegex(ValueError, "sample_sex"):
-        gi.load_sample_sheet(sheet)
-
-  def test_inconsistent_ont_preset_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      bam = touch(d / "a.bam")
-      sheet = self._sheet(d, [
-        ("HG002", "male", "ont-r9", "unaligned_bam", str(bam)),
-        ("HG002", "male", "ont-r10", "unaligned_bam", str(bam)),
-      ])
-      with self.assertRaisesRegex(ValueError, "ont_preset"):
         gi.load_sample_sheet(sheet)
 
   def test_trio_requires_both_parents(self):
@@ -143,40 +77,17 @@ class LoadSampleSheetTest(unittest.TestCase):
       with self.assertRaisesRegex(ValueError, "paternal_illumina_fastq"):
         gi.load_sample_sheet(sheet)
 
-  def test_unknown_file_role_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      bam = touch(d / "a.bam")
-      sheet = self._sheet(d, [("HG002", "male", "", "not_a_role", str(bam))])
-      with self.assertRaisesRegex(ValueError, "file_role"):
-        gi.load_sample_sheet(sheet)
-
-  def test_nonexistent_file_path_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      sheet = self._sheet(d, [("HG002", "male", "", "unaligned_bam", str(d / "missing.bam"))])
-      with self.assertRaises(ValueError):
-        gi.load_sample_sheet(sheet)
-
-  def test_missing_column_raises(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      path = d / "sheet.tsv"
-      path.write_text("sample_name\tsample_sex\tfile_role\tfile_path\n")
-      with self.assertRaisesRegex(ValueError, "ont_preset"):
-        gi.load_sample_sheet(path)
-
 
 class BuildInputsTest(unittest.TestCase):
   def setUp(self):
     self.tmp = tempfile.TemporaryDirectory()
     self.repo_root = Path(self.tmp.name)
-    for rel in gi.REPO_RELATIVE_FILES.values():
+    for rel in gi.common.REPO_RELATIVE_FILES.values():
       touch(self.repo_root / rel)
-    for rels in gi.REPO_RELATIVE_ARRAYS.values():
+    for rels in gi.common.REPO_RELATIVE_ARRAYS.values():
       for rel in rels:
         touch(self.repo_root / rel)
-    for rel in gi.ONT_ALPHA_TSV_BY_PRESET.values():
+    for rel in gi.common.ONT_ALPHA_TSV_BY_PRESET.values():
       touch(self.repo_root / rel)
     self.site_config = {key: f"/site/{key}" for key in gi.SITE_CONFIG_KEYS}
 
@@ -237,42 +148,6 @@ class BuildInputsTest(unittest.TestCase):
       self.site_config, self.repo_root, "off",
     )
     self.assertEqual(inputs["EndToEndAssembly.paternal_illumina_fastq"], ["/data/father.fq.gz"])
-
-  def test_repo_relative_arrays_are_absolute_under_repo_root(self):
-    inputs = gi.build_inputs(self._sample(), self.site_config, self.repo_root, "off")
-    for path in inputs["EndToEndAssembly.annotations_bed_array_to_be_projected"]:
-      self.assertTrue(path.startswith(str(self.repo_root)))
-
-
-class ValidateRepoPathsTest(unittest.TestCase):
-  def test_missing_file_raises_with_submodule_hint(self):
-    with tempfile.TemporaryDirectory() as d:
-      with self.assertRaisesRegex(ValueError, "submodule"):
-        gi.validate_repo_paths(Path(d))
-
-  def test_passes_when_every_path_present(self):
-    with tempfile.TemporaryDirectory() as d:
-      d = Path(d)
-      for rel in gi.REPO_RELATIVE_FILES.values():
-        touch(d / rel)
-      for rels in gi.REPO_RELATIVE_ARRAYS.values():
-        for rel in rels:
-          touch(d / rel)
-      for rel in gi.ONT_ALPHA_TSV_BY_PRESET.values():
-        touch(d / rel)
-      gi.validate_repo_paths(d)  # must not raise
-
-
-class RealRepoConstantsTest(unittest.TestCase):
-  """Checks generate_inputs.py's hardcoded vendored-path constants against the actual
-  checked-out flagger/calN50 submodules, so a submodule bump that renames or removes a file
-  this script depends on is caught here rather than only when generating real inputs."""
-
-  def test_constants_resolve_against_checked_out_submodules(self):
-    repo_root = gi.default_repo_root()
-    if not (repo_root / "evaluation/workflows/imports/flagger/misc").is_dir():
-      self.skipTest("flagger submodule not checked out (git submodule update --init --recursive)")
-    gi.validate_repo_paths(repo_root)
 
 
 if __name__ == "__main__":

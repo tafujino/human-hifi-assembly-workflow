@@ -9,7 +9,8 @@ locally for that project, and links back here for the CI picture.
 
 Triggered on pushes and pull requests touching `assembly/workflows/**`,
 `evaluation/workflows/**`, `end_to_end/workflows/**`, either of the first two projects'
-`check_images.sh`, or `scripts/registry_lib.sh`.
+`check_images.sh`, `scripts/registry_lib.sh`, `scripts/input_generation_common.py`, or
+`scripts/fetch_resources.py`.
 
 | Job | Runs | Covers |
 | --- | --- | --- |
@@ -19,7 +20,8 @@ Triggered on pushes and pull requests touching `assembly/workflows/**`,
 | `images-assembly` | `assembly/docker/check_images.sh` | assembly |
 | `images-evaluation` | `evaluation/docker/check_images.sh` | evaluation |
 | `test-evaluation` | `python3 -m unittest discover -s evaluation/workflows/scripts/tests` | evaluation |
-| `test-end-to-end` | `python3 -m unittest discover -s end_to_end/workflows/scripts/tests` (checkout with `submodules: recursive` — one test checks the suite's hardcoded flagger/calN50 paths against what is actually vendored) | end-to-end |
+| `test-end-to-end` | `python3 -m unittest discover -s end_to_end/workflows/scripts/tests` | end-to-end |
+| `test-shared-scripts` | `python3 -m unittest discover -s scripts/tests` (checkout with `submodules: recursive` — one test checks the suite's hardcoded flagger/calN50 paths against what is actually vendored) | shared (evaluation + end-to-end) |
 
 `miniwdl check`'s lint findings (GitHub's runners have shellcheck installed, so it additionally
 lints each task's command block; it also flags things like unused imports) are reported but do
@@ -33,10 +35,13 @@ own test suite run separately by `build-docker-images.yml` below, not by this wo
 end-to-end has no `images-end-to-end` job: it introduces no tasks or images of its own, only
 calls into `HifiAssembly` and `AssemblyEvaluation`, so `check-end-to-end` (which resolves
 through both sub-workflows' imports) already covers everything the `images-*` jobs above
-cover for their own projects. It does have `test-end-to-end`, though:
-`end_to_end/workflows/scripts/` (`generate_inputs.py`/`fetch_resources.py`, see
-[end_to_end/docs/generate_inputs.md](../end_to_end/docs/generate_inputs.md)) is real script
-logic of end-to-end's own, the same way evaluation's `summarize_evaluation.py` is.
+cover for their own projects. It does have `test-end-to-end`, though: each project's own
+`workflows/scripts/generate_inputs.py` (see
+[generate_inputs.md](generate_inputs.md)) is real script logic, the same way evaluation's
+`summarize_evaluation.py` is. Both generators build on `scripts/input_generation_common.py`
+and `scripts/fetch_resources.py`, generic across both projects (like `scripts/registry_lib.sh`)
+rather than owned by either one, so that shared code has its own `test-shared-scripts` job
+instead of living inside either project's own test job.
 
 ## `.github/workflows/build-docker-images.yml`
 
@@ -57,6 +62,8 @@ running on `main`, so a build from `dev` or a topic branch can never move that t
 
 * [container_image_pinning.md](container_image_pinning.md) — the shared image-pinning policy
   these jobs enforce
+* [generate_inputs.md](generate_inputs.md) — the shared `inputs.json` generation design
+  `test-shared-scripts` and each project's own `test-evaluation`/`test-end-to-end` cover
 * [assembly/docs/validation.md](../assembly/docs/validation.md),
   [evaluation/docs/validation.md](../evaluation/docs/validation.md),
   [end_to_end/docs/validation.md](../end_to_end/docs/validation.md) — how to run each

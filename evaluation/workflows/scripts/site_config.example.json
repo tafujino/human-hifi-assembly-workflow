@@ -1,0 +1,4 @@
+{
+  "reference_cdna_fasta": "<PATH_TO_RESOURCES>/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+  "projection_reference_fasta": "<PATH_TO_RESOURCES>/chm13v2.0.fa.gz"
+}

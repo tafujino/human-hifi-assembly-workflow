@@ -3,7 +3,7 @@
 ```sh
 miniwdl check evaluation/workflows/*.wdl                     # syntax, types, imports
 evaluation/docker/check_images.sh                            # pinned images resolve
-python3 -m unittest discover -s evaluation/workflows/scripts/tests -v  # summarize_evaluation.py
+python3 -m unittest discover -s evaluation/workflows/scripts/tests -v  # summarize_evaluation.py, generate_inputs.py
 ```
 
 `miniwdl check` needs the vendored submodules actually checked out to resolve
@@ -31,3 +31,12 @@ are exact and don't depend on any tool's version:
   fixtures, produces the expected combined TSV and JSON.
 
 Each test file also documents its own run command in its module docstring.
+
+## The generate_inputs.py test suite
+
+The same directory also covers `generate_inputs.py` (see [generate_inputs.md](generate_inputs.md)):
+its own sample sheet validation (exactly one `hap1_assembly_fasta`/`hap2_assembly_fasta` row,
+at least one `hifi_read_file` row) and `AssemblyEvaluation`-shaped `build_inputs()` output.
+The sample sheet/site config/repo-path mechanics it builds on are shared with
+`end_to_end`'s own generator and covered once, by `scripts/tests/` at the top level instead
+(see [../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).

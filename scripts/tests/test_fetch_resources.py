@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for ../fetch_resources.py.
 
-Run with: python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
-(also run by CI's test-end-to-end job). Network access is mocked throughout.
+Run with: python3 -m unittest discover -s scripts/tests -v (also run by CI's
+test-shared-scripts job). Network access is mocked throughout.
 """
 import io
 import os

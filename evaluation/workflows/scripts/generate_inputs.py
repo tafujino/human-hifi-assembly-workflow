@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generates EndToEndAssembly inputs.json files, one per sample, from three layers:
+"""Generates AssemblyEvaluation inputs.json files, one per sample, from three layers:
 
   - a long-format sample sheet (one row per file; see sample_sheet.example.tsv)
   - a site config (local absolute paths for externally downloaded resources; see
     site_config.example.json, or generate one with ../../../scripts/fetch_resources.py)
   - this repository's own checkout (vendored flagger/calN50 paths and the ont_preset ->
-    alpha tsv lookup, shared with evaluation/workflows/scripts/generate_inputs.py via
+    alpha tsv lookup, shared with end_to_end/workflows/scripts/generate_inputs.py via
     ../../../scripts/input_generation_common.py)
 
 See ../../docs/generate_inputs.md for the full design.
@@ -19,44 +19,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import input_generation_common as common  # noqa: E402
 
 # --- Externally downloaded resources: local paths come from the site config, not here ---
+# Unlike EndToEndAssembly, AssemblyEvaluation has no assembly-side inputs of its own (no
+# sample_sex, no yak k-mer databases, no mito reference): it starts from an already-built
+# assembly, so its site config is the two references shared with end_to_end's own.
 SITE_CONFIG_KEYS = (
-  "chrY_no_par_yak",
-  "chrX_no_par_yak",
-  "par_yak",
-  "mito_reference_fasta",
-  "mito_reference_gb",
   "reference_cdna_fasta",
   "projection_reference_fasta",
 )
 
 FILE_ROLE_TO_INPUT_KEY = {
-  "unaligned_bam": "unaligned_bams",
-  "ont_ul_fastq": "ont_ul_fastq",
-  "paternal_illumina_fastq": "paternal_illumina_fastq",
-  "maternal_illumina_fastq": "maternal_illumina_fastq",
+  "hap1_assembly_fasta": "hap1_assembly_fasta",
+  "hap2_assembly_fasta": "hap2_assembly_fasta",
+  "hifi_read_file": "hifi_read_files",
+  "ont_read_file": "ont_read_files",
 }
 
-# sample_sex is a per-sample scalar and required; ont_preset is a per-sample scalar but
-# optional (meaningless for a sample with no ont_ul_fastq rows) -- see load_sample_sheet.
-SCALAR_COLUMNS = ("sample_sex", "ont_preset")
+# ont_preset is a per-sample scalar but optional (meaningless for a sample with no
+# ont_read_file rows) -- see load_sample_sheet.
+SCALAR_COLUMNS = ("ont_preset",)
 
 
 def load_sample_sheet(path):
   samples = common.load_sample_sheet(path, FILE_ROLE_TO_INPUT_KEY, SCALAR_COLUMNS)
   for sample in samples:
-    if sample["sample_sex"] is None:
+    if len(sample["hap1_assembly_fasta"]) != 1:
       raise ValueError(
-        f"sample '{sample['sample_name']}': sample_sex must be given exactly once and "
-        "consistently across its rows"
+        f"sample '{sample['sample_name']}': exactly one hap1_assembly_fasta row is "
+        f"required, got {len(sample['hap1_assembly_fasta'])}"
       )
-    if not sample["unaligned_bams"]:
-      raise ValueError(f"sample '{sample['sample_name']}': at least one unaligned_bam row is required")
-    if bool(sample["paternal_illumina_fastq"]) != bool(sample["maternal_illumina_fastq"]):
+    if len(sample["hap2_assembly_fasta"]) != 1:
       raise ValueError(
-        f"sample '{sample['sample_name']}': paternal_illumina_fastq and "
-        "maternal_illumina_fastq must be given together or omitted together "
-        "(trio binning needs both parents)"
+        f"sample '{sample['sample_name']}': exactly one hap2_assembly_fasta row is "
+        f"required, got {len(sample['hap2_assembly_fasta'])}"
       )
+    if not sample["hifi_read_files"]:
+      raise ValueError(f"sample '{sample['sample_name']}': at least one hifi_read_file row is required")
+    sample["hap1_assembly_fasta"] = sample["hap1_assembly_fasta"][0]
+    sample["hap2_assembly_fasta"] = sample["hap2_assembly_fasta"][0]
   return samples
 
 
@@ -65,18 +64,15 @@ def build_inputs(sample, site_config, repo_root, secphase):
     return str(repo_root / rel)
 
   inputs = {
-    "EndToEndAssembly.sample_name": sample["sample_name"],
-    "EndToEndAssembly.sample_sex": sample["sample_sex"],
-    "EndToEndAssembly.unaligned_bams": sample["unaligned_bams"],
-    "EndToEndAssembly.ont_ul_fastq": sample["ont_ul_fastq"],
+    "AssemblyEvaluation.sample_name": sample["sample_name"],
+    "AssemblyEvaluation.hap1_assembly_fasta": sample["hap1_assembly_fasta"],
+    "AssemblyEvaluation.hap2_assembly_fasta": sample["hap2_assembly_fasta"],
+    "AssemblyEvaluation.hifi_read_files": sample["hifi_read_files"],
+    "AssemblyEvaluation.ont_read_files": sample["ont_read_files"],
   }
 
-  if sample["paternal_illumina_fastq"]:
-    inputs["EndToEndAssembly.paternal_illumina_fastq"] = sample["paternal_illumina_fastq"]
-    inputs["EndToEndAssembly.maternal_illumina_fastq"] = sample["maternal_illumina_fastq"]
-
   for key in SITE_CONFIG_KEYS:
-    inputs[f"EndToEndAssembly.{key}"] = site_config[key]
+    inputs[f"AssemblyEvaluation.{key}"] = site_config[key]
 
   if sample["ont_preset"]:
     if sample["ont_preset"] not in common.ONT_ALPHA_TSV_BY_PRESET:
@@ -84,15 +80,15 @@ def build_inputs(sample, site_config, repo_root, secphase):
         f"sample '{sample['sample_name']}': unknown ont_preset '{sample['ont_preset']}' "
         f"(expected one of {sorted(common.ONT_ALPHA_TSV_BY_PRESET)})"
       )
-    inputs["EndToEndAssembly.ont_preset"] = sample["ont_preset"]
-    inputs["EndToEndAssembly.ont_alpha_tsv"] = repo_path(common.ONT_ALPHA_TSV_BY_PRESET[sample["ont_preset"]])
+    inputs["AssemblyEvaluation.ont_preset"] = sample["ont_preset"]
+    inputs["AssemblyEvaluation.ont_alpha_tsv"] = repo_path(common.ONT_ALPHA_TSV_BY_PRESET[sample["ont_preset"]])
 
   for key, rel in common.REPO_RELATIVE_FILES.items():
-    inputs[f"EndToEndAssembly.{key}"] = repo_path(rel)
+    inputs[f"AssemblyEvaluation.{key}"] = repo_path(rel)
   for key, rels in common.REPO_RELATIVE_ARRAYS.items():
-    inputs[f"EndToEndAssembly.{key}"] = [repo_path(rel) for rel in rels]
+    inputs[f"AssemblyEvaluation.{key}"] = [repo_path(rel) for rel in rels]
 
-  inputs.update({f"EndToEndAssembly.{k}": v for k, v in common.SECPHASE_PRESETS[secphase].items()})
+  inputs.update({f"AssemblyEvaluation.{k}": v for k, v in common.SECPHASE_PRESETS[secphase].items()})
 
   return inputs
 

@@ -85,7 +85,9 @@ included, not just data inputs like `hifi_read_files`, `hap1_assembly_fasta`, an
 Each `.wdl` file under `evaluation/workflows/` carries a header comment explaining its
 design decisions, the same way `assembly/workflows/` does.
 
-See [evaluation/docs/pipeline.md](evaluation/docs/pipeline.md) for inputs and outputs.
+See [evaluation/docs/pipeline.md](evaluation/docs/pipeline.md) for inputs and outputs, and
+[evaluation/docs/generate_inputs.md](evaluation/docs/generate_inputs.md) for generating
+`inputs.json` per sample instead of hand-writing it.
 
 ## End-to-end pipeline
 

@@ -1,0 +1,15 @@
+{
+  "resources": [
+    {
+      "config_key": "reference_cdna_fasta",
+      "url": "https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+      "dest_filename": "Homo_sapiens.GRCh38.cdna.all.fa.gz",
+      "_comment": "current_fasta is Ensembl's symlink to whatever the latest release is; pin an explicit release (e.g. /pub/release-116/...) instead for a reproducible run, see cdna_reference.md"
+    },
+    {
+      "config_key": "projection_reference_fasta",
+      "url": "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz",
+      "dest_filename": "chm13v2.0.fa.gz"
+    }
+  ]
+}

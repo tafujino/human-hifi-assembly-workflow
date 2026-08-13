@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Bulk-downloads EndToEndAssembly's externally-hosted resources (see
-../../docs/example_inputs.md for what each one is) into one directory, then emits a
-site_config.json pointing at them -- the same file generate_inputs.py's --site-config
-expects, hand-written or produced this way indifferently.
+"""Bulk-downloads externally-hosted resources for one of this repository's workflows into
+one directory, then emits a site_config.json pointing at them -- the same file each
+project's generate_inputs.py --site-config expects, hand-written or produced this way
+indifferently.
+
+Lives at the top level, the same way scripts/input_generation_common.py and
+scripts/registry_lib.sh do: the manifest format is generic (a {config_key, url,
+dest_filename} list), with no assumption about which workflow's resources it describes. Each
+project ships its own manifest -- evaluation/workflows/scripts/resources_manifest.example.json
+(2 entries) and end_to_end/workflows/scripts/resources_manifest.example.json (7 entries,
+superset of evaluation's plus the yak/mito files HifiAssembly needs) -- documenting what each
+config_key is and where its url comes from.
 
 A manifest entry with no url (e.g. the yak k-mer databases, which have no fixed public
 download location) is left for the site config to be filled in by hand, or for the file to
-be placed at its dest_filename under --dest-dir before rerunning. See
-resources_manifest.example.json.
+be placed at its dest_filename under --dest-dir before rerunning.
 
-Run with: python3 fetch_resources.py --manifest resources_manifest.example.json --dest-dir /path/to/resources
+Run with: python3 scripts/fetch_resources.py --manifest <project>/workflows/scripts/resources_manifest.example.json --dest-dir /path/to/resources
 """
 import argparse
 import hashlib
