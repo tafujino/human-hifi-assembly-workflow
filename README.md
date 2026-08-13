@@ -58,8 +58,6 @@ throughout:
    reimplementing read mapping and the HMM.
 3. **Gene completeness/duplication** — `asmgene.wdl`. Maps a reference cDNA set to CHM13 and
    to each haplotype separately with minimap2, then evaluates with paftools.js `asmgene`.
-   Haplotypes are never concatenated for this step, since a gene present on both would
-   otherwise be miscounted as a false duplication.
 
 All three feed one final aggregate summary, `<sample>.assembly_evaluation_summary.tsv` /
 `.json`.
