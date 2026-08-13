@@ -185,7 +185,7 @@ and their percentage of the flagged region) rather than re-parsing flagger's own
 * [chm13_reference.md](chm13_reference.md) — where to get the CHM13v2.0 reference
   `projection_reference_fasta` needs
 * [example_inputs.md](example_inputs.md) — a full example `inputs.json`
-* [container-images.md](container-images.md) — this project's own pinned images, and how
+* [container_images.md](container_images.md) — this project's own pinned images, and how
   `check_images.sh` (including `--list-reachable`) checks them
 * [validation.md](validation.md) — what is checked, locally and in CI
 * [augment_coverage_by_labels_fix.md](augment_coverage_by_labels_fix.md) — background on the

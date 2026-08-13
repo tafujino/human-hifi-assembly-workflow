@@ -19,17 +19,17 @@ The policy below applies to every project in this repository.
 * **assembly** builds three images of its own (`mitohifi`, `yak`, `mito-blast-filter`); every
   third-party base they and its other tasks use is digest-pinned. Enforced by
   `assembly/docker/check_images.sh` and CI's `images-assembly` job. See
-  [assembly/docs/container-images.md](../assembly/docs/container-images.md).
+  [assembly/docs/container_images.md](../assembly/docs/container_images.md).
 * **evaluation** builds none of its own; every pin (`mobinasri/long_read_aligner`,
   `mobinasri/bio_base`) is third-party and digest-pinned. Enforced by
   `evaluation/docker/check_images.sh` and CI's `images-evaluation` job. See
-  [evaluation/docs/container-images.md](../evaluation/docs/container-images.md).
+  [evaluation/docs/container_images.md](../evaluation/docs/container_images.md).
 * evaluation additionally vendors the flagger/calN50 submodules unedited
   (`evaluation/workflows/imports/`); their own image pins are out of this repository's
   control and intentionally out of scope for the check above — there is nothing here to fix
   if one of them is wrong. `evaluation/docker/check_images.sh --list-reachable` separately
   enumerates them for pre-build/caching purposes only; see
-  [evaluation/docs/container-images.md](../evaluation/docs/container-images.md#check_imagessh)
+  [evaluation/docs/container_images.md](../evaluation/docs/container_images.md#check_imagessh)
   for what it does and does not cover.
 
 `scripts/registry_lib.sh` — the registry HTTP query logic shared by both `check_images.sh`

@@ -1,6 +1,6 @@
 # Container images
 
-See [../../docs/container-image-pinning.md](../../docs/container-image-pinning.md) for the
+See [../../docs/container_image_pinning.md](../../docs/container_image_pinning.md) for the
 pinning policy shared across this repository (digest-pin third-party images; tag-pin, never
 overwrite, and only move `:latest` on `main` for images built here). This document covers
 only what's specific to assembly.

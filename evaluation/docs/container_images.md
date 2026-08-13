@@ -1,6 +1,6 @@
 # Container images
 
-See [../../docs/container-image-pinning.md](../../docs/container-image-pinning.md) for the
+See [../../docs/container_image_pinning.md](../../docs/container_image_pinning.md) for the
 pinning policy shared across this repository. evaluation builds no images of its own —
 every task in `evaluation/workflows/*.wdl` pins a third-party image, digest-pinned, with the
 tag it corresponds to kept as a comment above:

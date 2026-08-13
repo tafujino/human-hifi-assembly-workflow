@@ -182,7 +182,7 @@ assembly needs revisiting.
 
 * [mitochondrial.md](mitochondrial.md) — how to fetch the
   mitochondrial reference, and what removal does and does not remove
-* [container-images.md](container-images.md) — how images are pinned, built and
+* [container_images.md](container_images.md) — how images are pinned, built and
   published
 * [validation.md](validation.md) — what is checked, locally and in CI
 * [example_inputs.md](example_inputs.md) — a full example `inputs.json`

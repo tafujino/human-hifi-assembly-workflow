@@ -48,11 +48,11 @@ every `assembly/docker/<name>/` containing a `Dockerfile`, then builds and pushe
 `build_and_push.sh` runs its `test.sh` before pushing, so a failing one is never published —
 this is where `mito-blast-filter`'s test suite runs in CI. `--latest` is only passed when
 running on `main`, so a build from `dev` or a topic branch can never move that tag; see
-[container-image-pinning.md](container-image-pinning.md) for why that rule exists.
+[container_image_pinning.md](container_image_pinning.md) for why that rule exists.
 
 ## See also
 
-* [container-image-pinning.md](container-image-pinning.md) — the shared image-pinning policy
+* [container_image_pinning.md](container_image_pinning.md) — the shared image-pinning policy
   these jobs enforce
 * [assembly/docs/validation.md](../assembly/docs/validation.md),
   [evaluation/docs/validation.md](../evaluation/docs/validation.md),
