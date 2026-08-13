@@ -99,7 +99,9 @@ sub-workflows' outputs, unchanged.
 Requires the same submodule checkout as the evaluation pipeline (see
 [Setup](#setup) above), since it imports `assembly_evaluation.wdl` transitively.
 
-See [end_to_end/docs/pipeline.md](end_to_end/docs/pipeline.md) for inputs and outputs.
+See [end_to_end/docs/pipeline.md](end_to_end/docs/pipeline.md) for inputs and outputs, and
+[end_to_end/docs/generate_inputs.md](end_to_end/docs/generate_inputs.md) for generating
+`inputs.json` per sample instead of hand-writing it.
 
 ## CI and container images
 

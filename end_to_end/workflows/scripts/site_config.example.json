@@ -1,0 +1,9 @@
+{
+  "chrY_no_par_yak": "<PATH_TO_RESOURCES>/chrY_no_par.yak",
+  "chrX_no_par_yak": "<PATH_TO_RESOURCES>/chrX_no_par.yak",
+  "par_yak": "<PATH_TO_RESOURCES>/par.yak",
+  "mito_reference_fasta": "<PATH_TO_RESOURCES>/rCRS.fasta",
+  "mito_reference_gb": "<PATH_TO_RESOURCES>/rCRS.gb",
+  "reference_cdna_fasta": "<PATH_TO_RESOURCES>/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+  "projection_reference_fasta": "<PATH_TO_RESOURCES>/chm13v2.0.fa.gz"
+}

@@ -19,6 +19,7 @@ Triggered on pushes and pull requests touching `assembly/workflows/**`,
 | `images-assembly` | `assembly/docker/check_images.sh` | assembly |
 | `images-evaluation` | `evaluation/docker/check_images.sh` | evaluation |
 | `test-evaluation` | `python3 -m unittest discover -s evaluation/workflows/scripts/tests` | evaluation |
+| `test-end-to-end` | `python3 -m unittest discover -s end_to_end/workflows/scripts/tests` (checkout with `submodules: recursive` — one test checks the suite's hardcoded flagger/calN50 paths against what is actually vendored) | end-to-end |
 
 `miniwdl check`'s lint findings (GitHub's runners have shellcheck installed, so it additionally
 lints each task's command block; it also flags things like unused imports) are reported but do
@@ -29,11 +30,13 @@ nothing in `assembly/workflows/` has script logic that isn't already exercised b
 `miniwdl check` plus the image checks above (the one exception, `mito-blast-filter`, has its
 own test suite run separately by `build-docker-images.yml` below, not by this workflow).
 
-end-to-end has no `images-end-to-end`/`test-end-to-end` job: it introduces no tasks or images
-of its own, only calls into `HifiAssembly` and `AssemblyEvaluation`, so `check-end-to-end`
-(which resolves through both sub-workflows' imports) is already everything there is to check
-that isn't already covered by the `check-assembly`/`check-evaluation`/`images-*`/`test-evaluation`
-jobs above.
+end-to-end has no `images-end-to-end` job: it introduces no tasks or images of its own, only
+calls into `HifiAssembly` and `AssemblyEvaluation`, so `check-end-to-end` (which resolves
+through both sub-workflows' imports) already covers everything the `images-*` jobs above
+cover for their own projects. It does have `test-end-to-end`, though:
+`end_to_end/workflows/scripts/` (`generate_inputs.py`/`fetch_resources.py`, see
+[end_to_end/docs/generate_inputs.md](../end_to_end/docs/generate_inputs.md)) is real script
+logic of end-to-end's own, the same way evaluation's `summarize_evaluation.py` is.
 
 ## `.github/workflows/build-docker-images.yml`
 

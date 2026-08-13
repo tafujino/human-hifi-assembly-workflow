@@ -131,3 +131,20 @@ jobs:
 
       - name: Run summarize_evaluation.py unit tests
         run: python3 -m unittest discover -s evaluation/workflows/scripts/tests -v
+
+  test-end-to-end:
+    name: unit tests (end_to_end scripts)
+    runs-on: ubuntu-latest
+    steps:
+      # recursive: RealRepoConstantsTest checks generate_inputs.py's hardcoded flagger/calN50
+      # paths against what is actually vendored, which needs those submodules checked out.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run generate_inputs.py / fetch_resources.py unit tests
+        run: python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v

@@ -1,0 +1,43 @@
+{
+  "resources": [
+    {
+      "config_key": "reference_cdna_fasta",
+      "url": "https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+      "dest_filename": "Homo_sapiens.GRCh38.cdna.all.fa.gz",
+      "_comment": "current_fasta is Ensembl's symlink to whatever the latest release is; pin an explicit release (e.g. /pub/release-116/...) instead for a reproducible run, see evaluation/docs/cdna_reference.md"
+    },
+    {
+      "config_key": "projection_reference_fasta",
+      "url": "https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz",
+      "dest_filename": "chm13v2.0.fa.gz"
+    },
+    {
+      "config_key": "mito_reference_fasta",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=fasta&retmode=text",
+      "dest_filename": "rCRS.fasta"
+    },
+    {
+      "config_key": "mito_reference_gb",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text",
+      "dest_filename": "rCRS.gb"
+    },
+    {
+      "config_key": "chrY_no_par_yak",
+      "url": "",
+      "dest_filename": "chrY_no_par.yak",
+      "_comment": "No fixed public download URL; see https://github.com/lh3/yak. Either fill in url once you have one, or place the file at <dest-dir>/chrY_no_par.yak yourself before rerunning."
+    },
+    {
+      "config_key": "chrX_no_par_yak",
+      "url": "",
+      "dest_filename": "chrX_no_par.yak",
+      "_comment": "Same as chrY_no_par_yak."
+    },
+    {
+      "config_key": "par_yak",
+      "url": "",
+      "dest_filename": "par.yak",
+      "_comment": "Same as chrY_no_par_yak."
+    }
+  ]
+}
