@@ -41,7 +41,8 @@ Each `.wdl` file carries a header comment explaining its design decisions, inclu
 the ones that are not obvious. Start there rather than here.
 
 See [assembly/docs/pipeline.md](assembly/docs/pipeline.md) for inputs, outputs and further
-documentation.
+documentation, and [assembly/docs/generate_inputs.md](assembly/docs/generate_inputs.md) for
+generating `inputs.json` per sample instead of hand-writing it.
 
 ## Evaluation pipeline
 

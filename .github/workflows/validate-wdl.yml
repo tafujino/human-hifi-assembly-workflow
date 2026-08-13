@@ -125,6 +125,19 @@ jobs:
       - name: Verify every pinned container image is resolvable
         run: ./evaluation/docker/check_images.sh
 
+  test-assembly:
+    name: unit tests (assembly scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run generate_inputs.py unit tests
+        run: python3 -m unittest discover -s assembly/workflows/scripts/tests -v
+
   test-evaluation:
     name: unit tests (evaluation scripts)
     runs-on: ubuntu-latest

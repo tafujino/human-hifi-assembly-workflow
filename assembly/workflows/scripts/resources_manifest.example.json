@@ -1,0 +1,35 @@
+{
+  "resources": [
+    {
+      "config_key": "mito_reference_fasta",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=fasta&retmode=text",
+      "dest_filename": "rCRS.fasta"
+    },
+    {
+      "config_key": "mito_reference_gb",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text",
+      "dest_filename": "rCRS.gb"
+    },
+    {
+      "config_key": "chrY_no_par_yak",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "chrY-no-par.yak",
+      "dest_filename": "chrY_no_par.yak",
+      "_comment": "lh3/yak's precomputed chrX/Y/PAR k-mer dumps (https://github.com/lh3/yak, https://zenodo.org/records/7882299); all three yak files below are bundled in this one ~1.2GB tar, downloaded once and shared across them."
+    },
+    {
+      "config_key": "chrX_no_par_yak",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "chrX-no-par.yak",
+      "dest_filename": "chrX_no_par.yak",
+      "_comment": "Same archive as chrY_no_par_yak."
+    },
+    {
+      "config_key": "par_yak",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "par.yak",
+      "dest_filename": "par.yak",
+      "_comment": "Same archive as chrY_no_par_yak."
+    }
+  ]
+}

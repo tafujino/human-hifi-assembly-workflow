@@ -1,18 +1,20 @@
 # Generating inputs.json
 
-Both `evaluation/workflows/assembly_evaluation.wdl` (`AssemblyEvaluation`) and
-`end_to_end/workflows/end_to_end_assembly.wdl` (`EndToEndAssembly`) have a
-`generate_inputs.py` (`evaluation/workflows/scripts/`, `end_to_end/workflows/scripts/`) that
-generates that project's `inputs.json` per sample, instead of hand-writing the large,
-mostly-identical block each project's own `example_inputs.md` shows. This document is the
-single place describing the shared design; each project's own
+`assembly/workflows/hifi_assembly.wdl` (`HifiAssembly`), `evaluation/workflows/assembly_evaluation.wdl`
+(`AssemblyEvaluation`), and `end_to_end/workflows/end_to_end_assembly.wdl`
+(`EndToEndAssembly`) each have a `generate_inputs.py` (`assembly/workflows/scripts/`,
+`evaluation/workflows/scripts/`, `end_to_end/workflows/scripts/`) that generates that
+project's `inputs.json` per sample, instead of hand-writing the large, mostly-identical block
+each project's own `example_inputs.md` shows. This document is the single place describing
+the shared design; each project's own
+[assembly/docs/generate_inputs.md](../assembly/docs/generate_inputs.md) /
 [evaluation/docs/generate_inputs.md](../evaluation/docs/generate_inputs.md) /
 [end_to_end/docs/generate_inputs.md](../end_to_end/docs/generate_inputs.md) covers only what
 is specific to it (the sample sheet's `field` vocabulary, its own site config key subset,
 its own `<Workflow>.*`-prefixed output) -- the same split `docs/ci.md` uses for CI.
 
-The two generators build the same three independent layers, which vary for different
-reasons:
+The three generators build up to three independent layers, which vary for different reasons
+(`HifiAssembly` only needs the first two -- see below):
 
 | Layer | Varies by | File |
 | --- | --- | --- |
@@ -21,16 +23,21 @@ reasons:
 | This repository's own checkout | nothing (fixed once vendored) | not a file -- resolved from `scripts/input_generation_common.py`'s own location |
 
 SecPhase on/off is a fourth axis, but it is a run-wide policy rather than a per-sample or
-per-site property, so it is a `--secphase on`/`--secphase off` CLI flag on both generators
-instead of living in any of the three files above.
+per-site property, so it is a `--secphase on`/`--secphase off` CLI flag on `evaluation`'s and
+`end_to_end`'s own generators instead of living in any of the three files above.
 
 ## What's shared, and why
 
 `AssemblyEvaluation`'s inputs are a strict subset of `EndToEndAssembly`'s own evaluation-side
-inputs (see [end_to_end/docs/pipeline.md](../end_to_end/docs/pipeline.md)): both call into the
-same vendored flagger workflow with the same recommended settings, so the vendored
-flagger/calN50 paths, the `ont_preset -> ont_alpha_tsv` lookup, and the SecPhase on/off pairing
-are the exact same values for both. Rather than duplicate that data across both
+inputs, and `HifiAssembly`'s inputs are a strict subset of `EndToEndAssembly`'s own
+assembly-side inputs (see [end_to_end/docs/pipeline.md](../end_to_end/docs/pipeline.md)):
+`AssemblyEvaluation` and `EndToEndAssembly` both call into the same vendored flagger workflow
+with the same recommended settings, so the vendored flagger/calN50 paths, the
+`ont_preset -> ont_alpha_tsv` lookup, and the SecPhase on/off pairing are the exact same
+values for both. `HifiAssembly` needs none of that -- it vendors nothing and has no SecPhase
+concept -- so its own `generate_inputs.py` only calls the two functions below that are
+generic across every caller, and skips the vendored-path constants entirely. Rather than
+duplicate the vendored-path data across `evaluation`'s and `end_to_end`'s own
 `generate_inputs.py` files (a real drift risk -- 23 vendored paths, easy for a copy to go
 stale after the other is updated), it lives once in
 [`scripts/input_generation_common.py`](../scripts/input_generation_common.py):
@@ -60,7 +67,7 @@ stale after the other is updated), it lives once in
   differs by workflow.
 
 Lives at the top level, the same way `scripts/registry_lib.sh` does, because none of it
-assumes which of the two workflows is calling it.
+assumes which of the three workflows is calling it.
 
 ## `fetch_resources.py`
 
@@ -68,9 +75,10 @@ assumes which of the two workflows is calling it.
 project-specific logic to begin with: it bulk-downloads a manifest of externally-hosted
 resources into one directory and writes the site config each project's `generate_inputs.py
 --site-config` expects, hand-written or produced this way indifferently. Each project ships
-its own manifest (`evaluation/workflows/scripts/resources_manifest.example.json`, 2 entries;
-`end_to_end/workflows/scripts/resources_manifest.example.json`, 7 entries -- the superset
-`HifiAssembly`'s yak/mito inputs add) documenting where each `url` comes from:
+its own manifest (`assembly/workflows/scripts/resources_manifest.example.json`, 5 entries;
+`evaluation/workflows/scripts/resources_manifest.example.json`, 2 entries;
+`end_to_end/workflows/scripts/resources_manifest.example.json`, 7 entries -- the union of the
+other two) documenting where each `url` comes from:
 
 ```sh
 python3 scripts/fetch_resources.py \
