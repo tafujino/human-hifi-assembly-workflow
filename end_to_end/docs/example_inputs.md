@@ -82,16 +82,28 @@ separately; see
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/sd/chm13v2.0_SD.all.bed",
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_le6_STR.bed",
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_ge7_VNTR.bed"
-  ]
+  ],
+
+  "EndToEndAssembly.enable_running_secphase": true,
+  "EndToEndAssembly.flagger_aligner_options": "--eqx --cs -Y -L -y -I8g -p0.5"
 }
 ```
+
+`enable_running_secphase`/`flagger_aligner_options` are carried over verbatim from
+[evaluation/docs/example_inputs.md](../../evaluation/docs/example_inputs.md): set to `true`
+even though the default is `false`, since this isn't "the default is already fine" but a
+deliberate recommendation — Secphase's read-to-haplotype phasing correction is valuable for
+the kind of misassembly detection `AssemblyEvaluation` exists for, at the cost of extra
+runtime. Paired with `flagger_aligner_options` set to flagger's own default plus `-p0.5`, per
+flagger's own README recommendation for when Secphase is enabled (keeps more secondary
+alignments as candidates for Secphase to consider). Drop both lines to keep Secphase off.
 
 Left out deliberately, same reasoning as
 [evaluation/docs/example_inputs.md](../../evaluation/docs/example_inputs.md): `ul_cut`,
 `paternal_illumina_fastq`/`maternal_illumina_fastq`, `assemble_mitogenome`,
 `override_hom_cov`, `estimated_haploid_genome_size_mb`, `min_hom_cov`,
-`use_pansn_contig_names`, `asmgene_min_identity`, and `enable_running_secphase` (with its
-paired `flagger_aligner_options`) — all optional with defaults already reasonable for a
-standard run, or (for the trio-binning/mitogenome-skip/hom-cov-override knobs) meaningful
-only for a sample that needs that specific behavior. Omitting them here means those defaults
-keep applying without this file having to be kept in sync if the defaults ever change.
+`use_pansn_contig_names`, and `asmgene_min_identity` — all optional with defaults already
+reasonable for a standard run, or (for the trio-binning/mitogenome-skip/hom-cov-override
+knobs) meaningful only for a sample that needs that specific behavior. Omitting them here
+means those defaults keep applying without this file having to be kept in sync if the
+defaults ever change.
