@@ -78,14 +78,6 @@ git submodule update --init --recursive
 Skipping this is the most common way to see `assembly_evaluation.wdl`'s imports fail to
 resolve.
 
-**Every `File` input in the example `inputs.json` (see below) must be given as an absolute
-path** — vendored files like `cal_n50_script` and the other `workflows/imports/...` paths
-included, not just data inputs like `hifi_read_files`, `hap1_assembly_fasta`, and
-`reference_cdna_fasta`.
-
-Each `.wdl` file under `evaluation/workflows/` carries a header comment explaining its
-design decisions, the same way `assembly/workflows/` does.
-
 See [evaluation/docs/pipeline.md](evaluation/docs/pipeline.md) for inputs and outputs, and
 [evaluation/docs/generate_inputs.md](evaluation/docs/generate_inputs.md) for generating
 `inputs.json` per sample instead of hand-writing it.
