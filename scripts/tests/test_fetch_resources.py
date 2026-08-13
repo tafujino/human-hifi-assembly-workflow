@@ -4,6 +4,7 @@
 Run with: python3 -m unittest discover -s scripts/tests -v (also run by CI's
 test-shared-scripts job). Network access is mocked throughout.
 """
+import contextlib
 import io
 import os
 import sys
@@ -47,6 +48,32 @@ class FlakyResponse:
     if self._chunks:
       return self._chunks.pop(0)
     raise self._error
+
+
+class FakeHTTPResponse:
+  """Fake urlopen() response that supports getheader("Content-Length"), unlike a plain
+  io.BytesIO -- for exercising download()'s progress reporting, which needs it to compute a
+  percentage."""
+
+  def __init__(self, chunks, content_length=None):
+    self._chunks = list(chunks)
+    self._content_length = content_length
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *exc_info):
+    return False
+
+  def getheader(self, name, default=None):
+    if name == "Content-Length" and self._content_length is not None:
+      return str(self._content_length)
+    return default
+
+  def read(self, size=-1):
+    if self._chunks:
+      return self._chunks.pop(0)
+    return b""
 
 
 class FetchAllTest(unittest.TestCase):
@@ -249,6 +276,66 @@ class FetchAllArchiveTest(unittest.TestCase):
         urlopen.assert_not_called()
       self.assertEqual(skipped, [])
       self.assertEqual(site_config["par_yak"], str((dest_dir / "par.yak").resolve()))
+
+
+class DownloadProgressTest(unittest.TestCase):
+  """download()'s progress reporting, mocking time.monotonic() to control which chunk reads
+  cross the progress_interval threshold without a real (slow) sleep."""
+
+  def test_reports_periodic_and_final_progress_with_content_length(self):
+    chunk = b"a" * fr._MB
+    response = FakeHTTPResponse([chunk, chunk, chunk], content_length=3 * fr._MB)
+    # time.monotonic() calls, in order: initial, after chunk 1, after chunk 2, after chunk 3,
+    # final. Chunk 1 crosses the 10s default interval (11 - 0); chunk 2 doesn't (12 - 11);
+    # chunk 3 does again (23 - 11); final is a zero-length interval (23 - 23).
+    times = [0.0, 11.0, 12.0, 23.0, 23.0]
+    with tempfile.TemporaryDirectory() as d:
+      dest = Path(d) / "out.bin"
+      with mock.patch("urllib.request.urlopen", return_value=response), \
+           mock.patch("fetch_resources.time.monotonic", side_effect=times), \
+           contextlib.redirect_stdout(io.StringIO()) as out:
+        fr.download("https://example.invalid/f", dest, progress_label="thing")
+      lines = [line for line in out.getvalue().splitlines() if line.startswith("thing:")]
+      # One periodic report at chunk 1 (33%), one at chunk 3 (100%), one final (100%).
+      self.assertEqual(len(lines), 3)
+      self.assertIn("33%", lines[0])
+      self.assertIn("MB/s", lines[0])
+      self.assertIn("100%", lines[-1])
+      self.assertEqual(dest.read_bytes(), chunk * 3)
+
+  def test_no_content_length_reports_bytes_without_percentage(self):
+    chunk = b"a" * fr._MB
+    response = FakeHTTPResponse([chunk], content_length=None)
+    with tempfile.TemporaryDirectory() as d:
+      dest = Path(d) / "out.bin"
+      with mock.patch("urllib.request.urlopen", return_value=response), \
+           mock.patch("fetch_resources.time.monotonic", side_effect=[0.0, 11.0, 11.0]), \
+           contextlib.redirect_stdout(io.StringIO()) as out:
+        fr.download("https://example.invalid/f", dest, progress_label="thing")
+      lines = [line for line in out.getvalue().splitlines() if line.startswith("thing:")]
+      self.assertTrue(lines)
+      self.assertNotIn("%", lines[0])
+      self.assertIn("MB downloaded", lines[0])
+
+  def test_progress_interval_zero_disables_reporting(self):
+    chunk = b"a" * fr._MB
+    response = FakeHTTPResponse([chunk], content_length=fr._MB)
+    with tempfile.TemporaryDirectory() as d:
+      dest = Path(d) / "out.bin"
+      with mock.patch("urllib.request.urlopen", return_value=response), \
+           contextlib.redirect_stdout(io.StringIO()) as out:
+        fr.download("https://example.invalid/f", dest, progress_label="thing", progress_interval=0)
+      self.assertEqual(out.getvalue(), "")
+
+  def test_no_progress_label_disables_reporting(self):
+    chunk = b"a" * fr._MB
+    response = FakeHTTPResponse([chunk], content_length=fr._MB)
+    with tempfile.TemporaryDirectory() as d:
+      dest = Path(d) / "out.bin"
+      with mock.patch("urllib.request.urlopen", return_value=response), \
+           contextlib.redirect_stdout(io.StringIO()) as out:
+        fr.download("https://example.invalid/f", dest)
+      self.assertEqual(out.getvalue(), "")
 
 
 if __name__ == "__main__":

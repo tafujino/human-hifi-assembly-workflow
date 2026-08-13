@@ -114,6 +114,13 @@ re-fetched just because a sibling entry is missing), and the site config is rege
 each time rather than merged -- to point a key at a path outside this mechanism entirely,
 hand-edit the site config afterward instead of rerunning `fetch_resources.py` over it.
 
+Every download prints a stacked-line progress report (`<config_key>:  NN% (X MB / Y MB, Z
+MB/s)`) at most once every `--progress-interval` seconds (default 10; `0` disables it) --
+useful for the ~1.2GB yak archive above, where a silent multi-minute wait was easy to mistake
+for a hang. Percentage/total are omitted for a server response with no `Content-Length`
+header (seen from NCBI's eutils, for example); only the downloaded byte count and speed are
+shown in that case.
+
 ## Tests
 
 [`scripts/tests/`](../scripts/tests/) unit-tests the shared module and `fetch_resources.py`

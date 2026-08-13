@@ -32,8 +32,11 @@ import hashlib
 import json
 import sys
 import tarfile
+import time
 import urllib.request
 from pathlib import Path
+
+_MB = 1024 * 1024
 
 
 def sha256_of(path):
@@ -44,15 +47,53 @@ def sha256_of(path):
   return digest.hexdigest()
 
 
-def download(url, dest):
+def _report_progress(label, downloaded, total, interval_bytes, interval_seconds):
+  speed_mb_s = (interval_bytes / _MB) / interval_seconds if interval_seconds > 0 else 0.0
+  downloaded_mb = downloaded / _MB
+  if total:
+    pct = min(downloaded * 100 // total, 100)
+    print(f"{label}:  {pct:3d}% ({downloaded_mb:.1f} MB / {total / _MB:.1f} MB, {speed_mb_s:.2f} MB/s)")
+  else:
+    # No Content-Length header (some servers omit it) -- report bytes without a percentage.
+    print(f"{label}:  {downloaded_mb:.1f} MB downloaded, {speed_mb_s:.2f} MB/s")
+
+
+def download(url, dest, progress_label=None, progress_interval=10.0):
+  """progress_label: if given (and progress_interval > 0), a stacked-line progress report
+  ("<label>:  NN% (X MB / Y MB, Z MB/s)") is printed at most once every progress_interval
+  seconds while downloading, plus a final one once the transfer completes -- useful for a
+  large, slow transfer where the connection dropping partway (see
+  scripts/tests/test_fetch_resources.py's FlakyResponse) would otherwise be silent until it
+  fails. Percentage is omitted if the server's response has no Content-Length header.
+  progress_interval <= 0 disables reporting outright, regardless of progress_label."""
+  report = progress_label is not None and progress_interval > 0
   request = urllib.request.Request(url, headers={"User-Agent": "human-hifi-assembly-workflow/fetch_resources"})
   tmp = dest.with_name(dest.name + ".part")
   with urllib.request.urlopen(request) as response, open(tmp, "wb") as fh:
+    get_header = getattr(response, "getheader", None)
+    content_length = get_header("Content-Length") if get_header else None
+    total = int(content_length) if content_length else None
+
+    downloaded = 0
+    last_report_time = time.monotonic()
+    last_report_bytes = 0
     while True:
       chunk = response.read(1024 * 1024)
       if not chunk:
         break
       fh.write(chunk)
+      downloaded += len(chunk)
+      if report:
+        now = time.monotonic()
+        elapsed = now - last_report_time
+        if elapsed >= progress_interval:
+          _report_progress(progress_label, downloaded, total, downloaded - last_report_bytes, elapsed)
+          last_report_time = now
+          last_report_bytes = downloaded
+    if report:
+      _report_progress(
+        progress_label, downloaded, total, downloaded - last_report_bytes, time.monotonic() - last_report_time
+      )
   tmp.replace(dest)
 
 
@@ -77,7 +118,7 @@ def extract_member(archive_path, member_name, dest):
   tmp.replace(dest)
 
 
-def fetch_all(manifest, dest_dir):
+def fetch_all(manifest, dest_dir, progress_interval=10.0):
   dest_dir.mkdir(parents=True, exist_ok=True)
   site_config = {}
   skipped = []
@@ -117,7 +158,7 @@ def fetch_all(manifest, dest_dir):
             archive_path = dest_dir / f".archive-{hashlib.sha256(url.encode()).hexdigest()[:16]}"
             part_paths.append(archive_path.with_name(archive_path.name + ".part"))
             print(f"{key}: downloading shared archive {url} -> {archive_path}")
-            download(url, archive_path)
+            download(url, archive_path, progress_label=key, progress_interval=progress_interval)
             archive_paths[url] = archive_path
           part_paths.append(dest.with_name(dest.name + ".part"))
           print(f"{key}: extracting '{archive_member}' from archive -> {dest}")
@@ -131,7 +172,7 @@ def fetch_all(manifest, dest_dir):
         try:
           part_paths.append(dest.with_name(dest.name + ".part"))
           print(f"{key}: downloading {entry['url']} -> {dest}")
-          download(entry["url"], dest)
+          download(entry["url"], dest, progress_label=key, progress_interval=progress_interval)
         except Exception as exc:  # network errors vary by platform; treat all as skip-and-report
           print(f"{key}: download failed: {exc}", file=sys.stderr)
           skipped.append(key)
@@ -158,13 +199,17 @@ def main():
   ap.add_argument("--manifest", required=True, help="JSON manifest; see resources_manifest.example.json")
   ap.add_argument("--dest-dir", required=True, help="Directory to download into / look for already-present files in")
   ap.add_argument("--site-config-out", default=None, help="Default: <dest-dir>/site_config.json")
+  ap.add_argument(
+    "--progress-interval", type=float, default=10.0,
+    help="Seconds between download progress lines per resource, 0 to disable (default: 10)",
+  )
   args = ap.parse_args()
 
   with open(args.manifest) as fh:
     manifest = json.load(fh)
 
   dest_dir = Path(args.dest_dir)
-  site_config, skipped = fetch_all(manifest, dest_dir)
+  site_config, skipped = fetch_all(manifest, dest_dir, progress_interval=args.progress_interval)
 
   site_config_out = Path(args.site_config_out) if args.site_config_out else dest_dir / "site_config.json"
   with open(site_config_out, "w") as fh:
