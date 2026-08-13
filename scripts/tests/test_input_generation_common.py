@@ -162,6 +162,26 @@ class ValidateRepoPathsTest(unittest.TestCase):
       common.validate_repo_paths(d)  # must not raise
 
 
+class ParseBoolTest(unittest.TestCase):
+  def test_accepts_true_and_false_case_insensitively(self):
+    self.assertIs(common.parse_bool("S1", "assemble_mitogenome", "true"), True)
+    self.assertIs(common.parse_bool("S1", "assemble_mitogenome", "False"), False)
+    self.assertIs(common.parse_bool("S1", "assemble_mitogenome", "TRUE"), True)
+
+  def test_rejects_anything_else(self):
+    with self.assertRaisesRegex(ValueError, "assemble_mitogenome"):
+      common.parse_bool("S1", "assemble_mitogenome", "yes")
+
+
+class ParseIntTest(unittest.TestCase):
+  def test_parses_integer_string(self):
+    self.assertEqual(common.parse_int("S1", "min_hom_cov", "5"), 5)
+
+  def test_rejects_non_integer(self):
+    with self.assertRaisesRegex(ValueError, "min_hom_cov"):
+      common.parse_int("S1", "min_hom_cov", "five")
+
+
 class RealRepoConstantsTest(unittest.TestCase):
   """Checks the hardcoded vendored-path constants against the actual checked-out
   flagger/calN50 submodules, so a submodule bump that renames or removes a file either

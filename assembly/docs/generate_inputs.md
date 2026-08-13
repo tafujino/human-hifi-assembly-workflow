@@ -47,12 +47,35 @@ together (trio binning needs both parents -- the same rule `validate_inputs.wdl`
 run time, checked here too so a typo costs seconds locally rather than a wait in the HPC
 queue).
 
-Deliberately not generated: `ul_cut`, `assemble_mitogenome`, `override_hom_cov`,
-`estimated_haploid_genome_size_mb`, `min_hom_cov`, `use_pansn_contig_names` -- all optional
-with defaults already reasonable for a standard run, the same reason
-[example_inputs.md](example_inputs.md) leaves them out of the hand-written example. Omitting
-them here means those defaults keep applying without this file having to be kept in sync if
-the defaults ever change.
+## Optional per-sample overrides
+
+`assemble_mitogenome`, `override_hom_cov`, `use_pansn_contig_names` (WDL `Boolean`, sheet
+value `true`/`false`, case-insensitive) and `estimated_haploid_genome_size_mb`, `min_hom_cov`,
+`ul_cut` (WDL `Int`) are optional scalar fields, exactly like `sample_sex` above but
+omittable: give a sample no row for one and its `HifiAssembly.*` key is left out of the
+generated `inputs.json` entirely, so `hifi_assembly.wdl`'s own default keeps applying instead
+-- the same reason [example_inputs.md](example_inputs.md) leaves them out of the hand-written
+example, and why this generator doesn't need to be kept in sync if one of those defaults ever
+changes. Give it a row and `generate_inputs.py` type-checks and forwards the value:
+
+```
+HG005	assemble_mitogenome	false
+HG005	min_hom_cov	3
+```
+
+Same cross-field leniency as the WDL itself: e.g. `ul_cut` with no `ont_ul_fastq` row, or
+`estimated_haploid_genome_size_mb`/`min_hom_cov` with `override_hom_cov` left unset, are
+accepted but simply unused, not rejected -- this generator only checks that the *value* is a
+valid `Boolean`/`Int`, not whether the field is meaningful for that sample.
+
+These six field names and their Boolean/Int split live in
+`scripts/input_generation_common.py`'s `HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS`/
+`HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS`, alongside the `parse_bool`/`parse_int` functions that
+type-check a sample's string value against them -- shared with `end_to_end`'s own generator,
+which forwards these same six inputs to `HifiAssembly` under the exact same names (see
+[end_to_end/docs/generate_inputs.md](../../end_to_end/docs/generate_inputs.md) and
+[../../docs/generate_inputs.md](../../docs/generate_inputs.md) for why this lives in the
+shared module rather than being duplicated across both generators).
 
 ## Site config
 

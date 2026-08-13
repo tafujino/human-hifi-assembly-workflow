@@ -42,7 +42,11 @@ FIELD_TO_KEY = {
 # sample_sex is a per-sample scalar and required -- see load_sample_sheet. Unlike
 # evaluation's/end_to_end's own sheets there is no ont_preset here: that only exists to pick
 # flagger's ONT alpha tsv, which is AssemblyEvaluation-only.
-SCALAR_FIELDS = ("sample_sex",)
+SCALAR_FIELDS = (
+  ("sample_sex",)
+  + common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS
+  + common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS
+)
 
 
 def load_sample_sheet(path):
@@ -61,6 +65,12 @@ def load_sample_sheet(path):
         "maternal_illumina_fastq must be given together or omitted together "
         "(trio binning needs both parents)"
       )
+    for field in common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS:
+      if sample[field] is not None:
+        sample[field] = common.parse_bool(sample["sample_name"], field, sample[field])
+    for field in common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+      if sample[field] is not None:
+        sample[field] = common.parse_int(sample["sample_name"], field, sample[field])
   return samples
 
 
@@ -75,6 +85,11 @@ def build_inputs(sample, site_config):
   if sample["paternal_illumina_fastq"]:
     inputs["HifiAssembly.paternal_illumina_fastq"] = sample["paternal_illumina_fastq"]
     inputs["HifiAssembly.maternal_illumina_fastq"] = sample["maternal_illumina_fastq"]
+
+  # Each omitted (None) unless a sample sheet row overrides hifi_assembly.wdl's own default.
+  for field in common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS + common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+    if sample[field] is not None:
+      inputs[f"HifiAssembly.{field}"] = sample[field]
 
   for key in SITE_CONFIG_KEYS:
     inputs[f"HifiAssembly.{key}"] = site_config[key]

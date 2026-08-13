@@ -38,7 +38,11 @@ FIELD_TO_KEY = {
 
 # sample_sex is a per-sample scalar and required; ont_preset is a per-sample scalar but
 # optional (meaningless for a sample with no ont_ul_fastq rows) -- see load_sample_sheet.
-SCALAR_FIELDS = ("sample_sex", "ont_preset")
+SCALAR_FIELDS = (
+  ("sample_sex", "ont_preset")
+  + common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS
+  + common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS
+)
 
 
 def load_sample_sheet(path):
@@ -57,6 +61,12 @@ def load_sample_sheet(path):
         "maternal_illumina_fastq must be given together or omitted together "
         "(trio binning needs both parents)"
       )
+    for field in common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS:
+      if sample[field] is not None:
+        sample[field] = common.parse_bool(sample["sample_name"], field, sample[field])
+    for field in common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+      if sample[field] is not None:
+        sample[field] = common.parse_int(sample["sample_name"], field, sample[field])
   return samples
 
 
@@ -74,6 +84,13 @@ def build_inputs(sample, site_config, repo_root, secphase):
   if sample["paternal_illumina_fastq"]:
     inputs["EndToEndAssembly.paternal_illumina_fastq"] = sample["paternal_illumina_fastq"]
     inputs["EndToEndAssembly.maternal_illumina_fastq"] = sample["maternal_illumina_fastq"]
+
+  # Each omitted (None) unless a sample sheet row overrides end_to_end_assembly.wdl's own
+  # default (which end_to_end_assembly.wdl forwards to HifiAssembly, and, for
+  # estimated_haploid_genome_size_mb, to AssemblyEvaluation's NG50 calculation too).
+  for field in common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS + common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+    if sample[field] is not None:
+      inputs[f"EndToEndAssembly.{field}"] = sample[field]
 
   for key in SITE_CONFIG_KEYS:
     inputs[f"EndToEndAssembly.{key}"] = site_config[key]

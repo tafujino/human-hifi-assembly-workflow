@@ -84,6 +84,48 @@ class LoadSampleSheetTest(unittest.TestCase):
       with self.assertRaisesRegex(ValueError, "paternal_illumina_fastq"):
         gi.load_sample_sheet(sheet)
 
+  def test_optional_overrides_are_type_checked_and_passed_through(self):
+    with tempfile.TemporaryDirectory() as d:
+      d = Path(d)
+      bam = touch(d / "a.bam")
+      sheet = self._sheet(d, [
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "unaligned_bam", str(bam)),
+        ("HG002", "assemble_mitogenome", "false"),
+        ("HG002", "min_hom_cov", "5"),
+      ])
+      samples = gi.load_sample_sheet(sheet)
+      s = samples[0]
+      self.assertIs(s["assemble_mitogenome"], False)
+      self.assertEqual(s["min_hom_cov"], 5)
+      # Fields with no row at all stay None, i.e. "leave HifiAssembly's own default in place".
+      self.assertIsNone(s["override_hom_cov"])
+      self.assertIsNone(s["ul_cut"])
+
+  def test_invalid_optional_boolean_raises(self):
+    with tempfile.TemporaryDirectory() as d:
+      d = Path(d)
+      bam = touch(d / "a.bam")
+      sheet = self._sheet(d, [
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "unaligned_bam", str(bam)),
+        ("HG002", "assemble_mitogenome", "yes"),
+      ])
+      with self.assertRaisesRegex(ValueError, "assemble_mitogenome"):
+        gi.load_sample_sheet(sheet)
+
+  def test_invalid_optional_int_raises(self):
+    with tempfile.TemporaryDirectory() as d:
+      d = Path(d)
+      bam = touch(d / "a.bam")
+      sheet = self._sheet(d, [
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "unaligned_bam", str(bam)),
+        ("HG002", "min_hom_cov", "not-a-number"),
+      ])
+      with self.assertRaisesRegex(ValueError, "min_hom_cov"):
+        gi.load_sample_sheet(sheet)
+
 
 class BuildInputsTest(unittest.TestCase):
   def setUp(self):
@@ -98,6 +140,8 @@ class BuildInputsTest(unittest.TestCase):
       "paternal_illumina_fastq": [],
       "maternal_illumina_fastq": [],
     }
+    for field in gi.common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS + gi.common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+      sample[field] = None
     sample.update(overrides)
     return sample
 
@@ -119,6 +163,16 @@ class BuildInputsTest(unittest.TestCase):
     )
     self.assertEqual(inputs["HifiAssembly.paternal_illumina_fastq"], ["/data/father.fq.gz"])
     self.assertEqual(inputs["HifiAssembly.maternal_illumina_fastq"], ["/data/mother.fq.gz"])
+
+  def test_optional_overrides_omitted_by_default_but_included_when_set(self):
+    inputs = gi.build_inputs(self._sample(), self.site_config)
+    for field in gi.common.HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS + gi.common.HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS:
+      self.assertNotIn(f"HifiAssembly.{field}", inputs)
+
+    inputs = gi.build_inputs(self._sample(assemble_mitogenome=False, min_hom_cov=5), self.site_config)
+    self.assertIs(inputs["HifiAssembly.assemble_mitogenome"], False)
+    self.assertEqual(inputs["HifiAssembly.min_hom_cov"], 5)
+    self.assertNotIn("HifiAssembly.override_hom_cov", inputs)
 
 
 if __name__ == "__main__":

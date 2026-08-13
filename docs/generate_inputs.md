@@ -65,6 +65,14 @@ stale after the other is updated), it lives once in
   `sample_sex`, `ont_preset`). Each caller supplies its own required-field/count validation on
   top (e.g. "at least one unaligned_bam" vs "exactly one hap1_fasta"), since that genuinely
   differs by workflow.
+* `HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS` / `HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS` --
+  `assemble_mitogenome`/`override_hom_cov`/`use_pansn_contig_names` and
+  `estimated_haploid_genome_size_mb`/`min_hom_cov`/`ul_cut`, `HifiAssembly`'s own optional
+  inputs (each already defaulted sensibly in `hifi_assembly.wdl`). `end_to_end_assembly.wdl`
+  forwards these six to `HifiAssembly` under the exact same names, so `assembly`'s and
+  `end_to_end`'s own generators share this one field list (and the `parse_bool`/`parse_int`
+  functions that type-check a sample's sheet value against it) rather than each keeping its
+  own copy in sync with the other's.
 
 Lives at the top level, the same way `scripts/registry_lib.sh` does, because none of it
 assumes which of the three workflows is calling it.

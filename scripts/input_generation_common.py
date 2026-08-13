@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Shared helpers for generating this repository's WDL inputs.json files from a long-format
-sample sheet plus a site config, used by both evaluation/workflows/scripts/generate_inputs.py
-(AssemblyEvaluation) and end_to_end/workflows/scripts/generate_inputs.py (EndToEndAssembly).
+sample sheet plus a site config, used by assembly/workflows/scripts/generate_inputs.py
+(HifiAssembly), evaluation/workflows/scripts/generate_inputs.py (AssemblyEvaluation), and
+end_to_end/workflows/scripts/generate_inputs.py (EndToEndAssembly).
 
 Lives at the top level, the same way scripts/registry_lib.sh does, because everything in it
-is generic (no assumption about which of the two workflows is calling it): the vendored
+is generic (no assumption about which of the three workflows is calling it): the vendored
 flagger/calN50 paths, the ont_preset -> alpha tsv lookup, and the SecPhase on/off pairing are
-the exact same values for both, since both call into the same vendored flagger workflow with
-the same recommended settings. What differs between the two callers -- which site config
-keys are required, the sample sheet's field vocabulary, per-workflow validation (e.g.
-"at least one unaligned_bam" vs "exactly one hap1_assembly_fasta"), and the final
-`<Workflow>.*`-prefixed key set -- stays in each caller's own generate_inputs.py.
+the exact same values for evaluation's and end_to_end's own generators, since both call into
+the same vendored flagger workflow with the same recommended settings (assembly's own
+generator needs neither, since HifiAssembly vendors nothing). What differs between callers --
+which site config keys are required, the sample sheet's field vocabulary, per-workflow
+validation (e.g. "at least one unaligned_bam" vs "exactly one hap1_assembly_fasta"), and the
+final `<Workflow>.*`-prefixed key set -- stays in each caller's own generate_inputs.py.
 
 Not executable and defines no top-level side effects, so it is safe to import.
 """
@@ -78,6 +80,17 @@ SECPHASE_PRESETS = {
   },
   "off": {},
 }
+
+# HifiAssembly's own optional inputs, each with a default in hifi_assembly.wdl already
+# reasonable for a standard run -- shared between assembly's own generator and end_to_end's
+# (end_to_end_assembly.wdl forwards these to HifiAssembly under the exact same names), so both
+# accept the exact same sample sheet field vocabulary for them rather than one drifting from
+# the other. A sample sheet row for one of these is needed only to override that default for a
+# specific sample; giving the field no row at all (the common case) leaves the corresponding
+# `HifiAssembly.*` key out of the generated inputs.json entirely, so hifi_assembly.wdl's own
+# default keeps applying.
+HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS = ("assemble_mitogenome", "override_hom_cov", "use_pansn_contig_names")
+HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS = ("estimated_haploid_genome_size_mb", "min_hom_cov", "ul_cut")
 
 
 def default_repo_root():
@@ -199,3 +212,28 @@ def load_sample_sheet(path, field_to_key, scalar_fields=()):
     samples.append(entry)
 
   return samples
+
+
+# --- Typed scalar fields ---
+# load_sample_sheet's scalar_fields are always plain strings (or None); a caller with an
+# optional WDL Boolean/Int input among them (e.g. HifiAssembly's assemble_mitogenome,
+# min_hom_cov) converts the sample's own string value with one of these once it isn't None,
+# rather than every caller re-implementing the same "true"/"false"-only parsing and error
+# message.
+
+def parse_bool(sample_name, field, value):
+  """Parses a sample sheet scalar field's string value as a WDL Boolean. Case-insensitive
+  "true"/"false" only -- anything else (typos, "yes"/"1", ...) fails loudly rather than being
+  silently coerced one way or the other."""
+  normalized = value.strip().lower()
+  if normalized not in ("true", "false"):
+    raise ValueError(f"sample '{sample_name}': {field} must be \"true\" or \"false\", got '{value}'")
+  return normalized == "true"
+
+
+def parse_int(sample_name, field, value):
+  """Parses a sample sheet scalar field's string value as a WDL Int."""
+  try:
+    return int(value.strip())
+  except ValueError:
+    raise ValueError(f"sample '{sample_name}': {field} must be an integer, got '{value}'") from None

@@ -109,3 +109,9 @@ reasonable for a standard run, or (for the trio-binning/mitogenome-skip/hom-cov-
 knobs) meaningful only for a sample that needs that specific behavior. Omitting them here
 means those defaults keep applying without this file having to be kept in sync if the
 defaults ever change.
+
+See [generate_inputs.md](generate_inputs.md) for generating one `inputs.json` per sample
+(including `paternal_illumina_fastq`/`maternal_illumina_fastq`, and any of `ul_cut`,
+`assemble_mitogenome`, `override_hom_cov`, `estimated_haploid_genome_size_mb`, `min_hom_cov`,
+`use_pansn_contig_names` a specific sample needs to override) instead of hand-writing this
+block.

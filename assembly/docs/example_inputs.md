@@ -37,5 +37,6 @@ without this file having to be kept in sync if the defaults ever change. See
 [pipeline.md](pipeline.md#inputs) for what each one does.
 
 See [generate_inputs.md](generate_inputs.md) for generating one `inputs.json` per sample
-(including `ont_ul_fastq`/`paternal_illumina_fastq`/`maternal_illumina_fastq` for the samples
-that need them) instead of hand-writing this block.
+(including `ont_ul_fastq`/`paternal_illumina_fastq`/`maternal_illumina_fastq`, and any of the
+optional knobs above a specific sample needs to override, e.g. `assemble_mitogenome`) instead
+of hand-writing this block.

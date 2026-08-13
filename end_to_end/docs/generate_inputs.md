@@ -1,8 +1,8 @@
 # Generating inputs.json
 
 See [../../docs/generate_inputs.md](../../docs/generate_inputs.md) for the shared design
-(the three-layer split, what's common with `evaluation`'s own generator, `fetch_resources.py`).
-This document covers only what's specific to `EndToEndAssembly`.
+(the three-layer split, what's common with `assembly`'s and `evaluation`'s own generators,
+`fetch_resources.py`). This document covers only what's specific to `EndToEndAssembly`.
 
 ## Sample sheet
 
@@ -43,6 +43,28 @@ needs `sample_sex` given exactly once and consistently, at least one `unaligned_
 together (trio binning needs both parents -- the same rule
 `assembly/workflows/validate_inputs.wdl` enforces at run time, checked here too so a typo
 costs seconds locally rather than a wait in the HPC queue).
+
+## Optional per-sample overrides
+
+`assemble_mitogenome`, `override_hom_cov`, `use_pansn_contig_names` (WDL `Boolean`, sheet
+value `true`/`false`, case-insensitive) and `estimated_haploid_genome_size_mb`, `min_hom_cov`,
+`ul_cut` (WDL `Int`) are optional scalar fields, exactly like `sample_sex`/`ont_preset` above
+but omittable: give a sample no row for one and its `EndToEndAssembly.*` key is left out of
+the generated `inputs.json` entirely, so `end_to_end_assembly.wdl`'s own default keeps
+applying instead (which it forwards to `HifiAssembly` unchanged, and, for
+`estimated_haploid_genome_size_mb`, to `AssemblyEvaluation`'s NG50 calculation too -- see
+[example_inputs.md](example_inputs.md)). Give it a row and `generate_inputs.py` type-checks
+and forwards the value, exactly the same as
+[assembly/docs/generate_inputs.md](../../assembly/docs/generate_inputs.md#optional-per-sample-overrides)
+describes for `HifiAssembly`'s own generator, since the field names, Boolean/Int split, and
+parsing all live once in `scripts/input_generation_common.py`
+(`HIFI_ASSEMBLY_OPTIONAL_BOOLEAN_FIELDS`/`HIFI_ASSEMBLY_OPTIONAL_INT_FIELDS`,
+`parse_bool`/`parse_int`) rather than being duplicated across both generators:
+
+```
+HG005	assemble_mitogenome	false
+HG005	min_hom_cov	3
+```
 
 ## Site config
 
