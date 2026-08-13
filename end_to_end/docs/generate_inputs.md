@@ -106,11 +106,8 @@ in the same `EndToEndAssembly.*`-prefixed shape as
 
 ## Tests
 
-```sh
-python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v
-```
-
 Covers this project's own sample sheet validation and `EndToEndAssembly`-shaped
-`build_inputs()` output; the shared mechanics underneath are covered once by
-`scripts/tests/` instead (see [../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).
-See [validation.md](validation.md) for how this fits into the rest of this project's checks.
+`build_inputs()` output; the shared mechanics underneath are covered separately by
+`scripts/tests/`. See [ci.md](../../docs/ci.md) for how this maps to CI
+(`test-end-to-end`/`test-shared-scripts`) and [validation.md](validation.md) for how this fits
+into the rest of this project's checks.

@@ -39,4 +39,4 @@ its own sample sheet validation (exactly one `hap1_fasta`/`hap2_fasta` row,
 at least one `hifi_read_file` row) and `AssemblyEvaluation`-shaped `build_inputs()` output.
 The sample sheet/site config/repo-path mechanics it builds on are shared with
 `end_to_end`'s own generator and covered once, by `scripts/tests/` at the top level instead
-(see [../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).
+(see [../../docs/ci.md](../../docs/ci.md)).

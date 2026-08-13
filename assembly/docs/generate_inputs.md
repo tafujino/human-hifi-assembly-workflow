@@ -117,14 +117,7 @@ in the same `HifiAssembly.*`-prefixed shape as [example_inputs.md](example_input
 
 ## Tests
 
-```sh
-python3 -m unittest discover -s assembly/workflows/scripts/tests -v
-```
-
 Covers this project's own sample sheet validation and `HifiAssembly`-shaped `build_inputs()`
-output. Unlike evaluation's and end_to_end's own generators, this one only calls
-`load_sample_sheet`/`load_site_config` from `scripts/input_generation_common.py` -- no
-repo-relative constants or SecPhase presets, since `HifiAssembly` vendors nothing -- so there
-is nothing project-specific left over to cover beyond what that shared mechanics test suite
-already does (see [../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)). See
+output; the shared mechanics underneath are covered separately by `scripts/tests/`. See
+[ci.md](../../docs/ci.md) for how this maps to CI (`test-assembly`/`test-shared-scripts`) and
 [validation.md](validation.md) for how this fits into the rest of this project's checks.

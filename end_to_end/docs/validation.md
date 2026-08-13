@@ -24,7 +24,7 @@ There is a test suite, though: `workflows/scripts/generate_inputs.py` (see
 unlike the WDL itself. It builds on `../../scripts/input_generation_common.py` and
 `../../scripts/fetch_resources.py`, shared with `evaluation`'s own generator and covered by
 their own top-level test suite instead (see
-[../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).
+[../../docs/ci.md](../../docs/ci.md)).
 
 ```sh
 python3 -m unittest discover -s end_to_end/workflows/scripts/tests -v

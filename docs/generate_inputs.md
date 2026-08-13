@@ -89,4 +89,7 @@ re-fetched just because a sibling entry is missing), and the site config is rege
 each time rather than merged -- to point a key at a path outside this mechanism entirely,
 hand-edit the site config afterward instead of rerunning `fetch_resources.py` over it.
 
-See [ci.md](ci.md) for how this and the shared module above are tested (`test-shared-scripts`).
+## Tests
+
+Covers the shared module above and `fetch_resources.py`. See [ci.md](ci.md) for how this
+maps to CI (`test-shared-scripts`).

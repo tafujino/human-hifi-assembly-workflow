@@ -26,7 +26,7 @@ calls the two functions of `scripts/input_generation_common.py` that are generic
 caller -- no repo-relative constants, no SecPhase, since `HifiAssembly` vendors nothing -- so
 there is nothing left over to share with `scripts/tests/` beyond what that shared mechanics
 test suite already covers (see
-[../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)).
+[../../docs/ci.md](../../docs/ci.md)).
 
 ## The filter test suite
 

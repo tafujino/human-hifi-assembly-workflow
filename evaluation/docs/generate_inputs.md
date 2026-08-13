@@ -77,12 +77,8 @@ in the same `AssemblyEvaluation.*`-prefixed shape as
 
 ## Tests
 
-```sh
-python3 -m unittest discover -s evaluation/workflows/scripts/tests -v
-```
-
 Covers this project's own sample sheet validation and `AssemblyEvaluation`-shaped
 `build_inputs()` output (alongside the existing `summarize_evaluation.py` tests); the shared
-mechanics underneath are covered once by `scripts/tests/` instead (see
-[../../docs/generate_inputs.md](../../docs/generate_inputs.md#tests)). See
-[validation.md](validation.md) for how this fits into the rest of this project's checks.
+mechanics underneath are covered separately by `scripts/tests/`. See
+[ci.md](../../docs/ci.md) for how this maps to CI (`test-evaluation`/`test-shared-scripts`)
+and [validation.md](validation.md) for how this fits into the rest of this project's checks.
