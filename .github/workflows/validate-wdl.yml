@@ -8,6 +8,7 @@ on:
       - 'assembly/docker/check_images.sh'
       - 'evaluation/workflows/**'
       - 'evaluation/docker/check_images.sh'
+      - 'end_to_end/workflows/**'
       - 'scripts/registry_lib.sh'
       - '.github/workflows/validate-wdl.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - 'assembly/docker/check_images.sh'
       - 'evaluation/workflows/**'
       - 'evaluation/docker/check_images.sh'
+      - 'end_to_end/workflows/**'
       - 'scripts/registry_lib.sh'
       - '.github/workflows/validate-wdl.yml'
   workflow_dispatch: {}
@@ -68,6 +70,32 @@ jobs:
       - name: Check every WDL document
         run: |
           for f in evaluation/workflows/*.wdl; do
+            echo "::group::$f"
+            miniwdl check "$f"
+            echo "::endgroup::"
+          done
+
+  check-end-to-end:
+    name: miniwdl check (end_to_end)
+    runs-on: ubuntu-latest
+    steps:
+      # recursive: end_to_end_assembly.wdl imports assembly_evaluation.wdl, which imports
+      # the vendored flagger submodule; miniwdl check needs it actually checked out to
+      # resolve.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install miniwdl
+        run: pip install --disable-pip-version-check miniwdl
+
+      - name: Check every WDL document
+        run: |
+          for f in end_to_end/workflows/*.wdl; do
             echo "::group::$f"
             miniwdl check "$f"
             echo "::endgroup::"

@@ -2,7 +2,8 @@
 
 Two related WDL pipelines for human PacBio HiFi long-read genome assembly:
 [assembly](#assembly-pipeline) builds a phased, diploid de novo assembly, and
-[evaluation](#evaluation-pipeline) evaluates one once it exists.
+[evaluation](#evaluation-pipeline) evaluates one once it exists. A third,
+[end-to-end](#end-to-end-pipeline) pipeline composes the two into a single run.
 
 ## Assembly pipeline
 
@@ -85,6 +86,20 @@ Each `.wdl` file under `evaluation/workflows/` carries a header comment explaini
 design decisions, the same way `assembly/workflows/` does.
 
 See [evaluation/docs/pipeline.md](evaluation/docs/pipeline.md) for inputs and outputs.
+
+## End-to-end pipeline
+
+`end_to_end/workflows/end_to_end_assembly.wdl` (workflow `EndToEndAssembly`) runs the two
+pipelines above as one: it takes the same inputs as `HifiAssembly`, plus the additional
+inputs `AssemblyEvaluation` needs that have no `HifiAssembly` counterpart (the reference
+FASTAs, vendored scripts, and flagger/asmgene pass-throughs), calls `HifiAssembly`, then
+calls `AssemblyEvaluation` on its `hap1`/`hap2` output. Its own output is the union of both
+sub-workflows' outputs, unchanged.
+
+Requires the same submodule checkout as the evaluation pipeline (see
+[Setup](#setup) above), since it imports `assembly_evaluation.wdl` transitively.
+
+See [end_to_end/docs/pipeline.md](end_to_end/docs/pipeline.md) for inputs and outputs.
 
 ## Licensing
 
