@@ -20,7 +20,7 @@ task EstimateHomCoverage {
 
   parameter_meta {
     seqkit_stats: "Output of seqkit stats -a -T for the trimmed reads. Must contain a sum_len column and exactly one data row."
-    genome_size_mb: "Genome size to divide the total base count by, in Mb."
+    estimated_haploid_genome_size_mb: "Genome size to divide the total base count by, in Mb."
     min_hom_cov: "Lowest coverage to accept. Below it the task fails instead of reporting the value. Set to 0 to accept anything, including 0."
   }
 
@@ -36,7 +36,7 @@ task EstimateHomCoverage {
     # Genome size to divide the total base count by, in Mb rather than bp so the literal
     # stays well within what Cromwell's expression parser accepts for an Int (a bare
     # 3100000000 fails to parse).
-    Int genome_size_mb
+    Int estimated_haploid_genome_size_mb
 
     # Refuse to report a coverage below this. Reaching it means the reads do not cover the
     # genome even once, which no HiFi assembly can use, so it is a broken input rather than
@@ -54,7 +54,7 @@ task EstimateHomCoverage {
 
     # Only the coverage goes to stdout, since that is what read_int() consumes; the inputs
     # it was derived from are written to stderr so the task log records the derivation.
-    awk -F'\t' -v genome_size_mb=~{genome_size_mb} -v min_hom_cov=~{min_hom_cov} '
+    awk -F'\t' -v estimated_haploid_genome_size_mb=~{estimated_haploid_genome_size_mb} -v min_hom_cov=~{min_hom_cov} '
       NR == 1 {
         for (i = 1; i <= NF; i++) if ($i == "sum_len") col = i
         if (!col) {
@@ -72,7 +72,7 @@ task EstimateHomCoverage {
           print "error: expected exactly one data row in " FILENAME ", got " rows+0 > "/dev/stderr"
           exit 1
         }
-        genome_size = genome_size_mb * 1000000
+        genome_size = estimated_haploid_genome_size_mb * 1000000
         cov = sum_len / genome_size
         printf "sum_len=%d genome_size=%d coverage=%.2f\n", \
           sum_len, genome_size, cov > "/dev/stderr"

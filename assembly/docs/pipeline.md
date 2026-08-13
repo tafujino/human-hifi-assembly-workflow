@@ -36,10 +36,10 @@ explain each one. Eight are worth calling out:
   HiFi-only phasing. `trio_binning_used` in the outputs records which mode ran.
 * **`override_hom_cov`** — off by default, so hifiasm infers the homozygous coverage from
   the k-mer histogram itself. Setting it derives `--hom-cov` from the trimmed read
-  statistics and `genome_size_mb` instead. Leave it off unless hifiasm's own inference is
+  statistics and `estimated_haploid_genome_size_mb` instead. Leave it off unless hifiasm's own inference is
   known to be wrong for the sample: `--hom-cov` governs how aggressively duplicate
   haplotigs are purged, and total bases divided by genome size is a cruder estimate than
-  the histogram peak hifiasm finds. Its two knobs, `genome_size_mb` (~3100, i.e. ~3.1 Gbp,
+  the histogram peak hifiasm finds. Its two knobs, `estimated_haploid_genome_size_mb` (~3100, i.e. ~3.1 Gbp,
   in Mb rather than bp since Cromwell's expression parser rejects a bare `3100000000`) and
   `min_hom_cov` (the coverage below which the run fails rather than handing hifiasm a
   useless number), are declared here and are ignored while `override_hom_cov` is off.

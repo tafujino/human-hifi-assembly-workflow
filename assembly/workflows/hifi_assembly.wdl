@@ -74,7 +74,7 @@ workflow HifiAssembly {
     maternal_illumina_fastq: "Maternal Illumina reads. Must be given together with paternal_illumina_fastq."
     assemble_mitogenome: "Assemble the mitochondrial genome from the trimmed HiFi reads with MitoHiFi. On by default. Turning it off also means hap2 gets no chrM and mito_contig_removal.wdl falls back to mito_reference_fasta as its BLAST subject, exactly as when the assembly fails on its own."
     override_hom_cov: "Override hifiasm's own homozygous-coverage inference with a value derived from the trimmed read statistics instead. Off by default; turn it on only when hifiasm's own inference is known to be wrong for the sample."
-    genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless override_hom_cov is set."
+    estimated_haploid_genome_size_mb: "Genome size the above estimate divides the total base count by, in Mb. Ignored unless override_hom_cov is set."
     min_hom_cov: "Lowest coverage that estimate accepts before failing the run. Ignored unless override_hom_cov is set."
     chrY_no_par_yak: "Pretrained chrY-without-PAR k-mer database from the yak repository. Supplied explicitly rather than downloaded."
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
@@ -116,7 +116,7 @@ workflow HifiAssembly {
     # Genome size to divide the total base count by, in Mb; the approximate size of the
     # human genome (~3.1 Gbp = 3100 Mb). In Mb rather than bp so the literal stays well
     # within what Cromwell's expression parser accepts (a bare 3100000000 fails to parse).
-    Int genome_size_mb = 3100
+    Int estimated_haploid_genome_size_mb = 3100
     # Lowest coverage the estimate may report before failing the run. Reaching it means the
     # reads do not cover the genome even once, which is a broken input rather than a number
     # worth passing to hifiasm. Set to 0 to accept anything.
@@ -182,7 +182,7 @@ workflow HifiAssembly {
     call estimate_hom_coverage_wf.EstimateHomCoverage as EstimateHomCoverage {
       input:
         seqkit_stats = ComputeReadStats.stats,
-        genome_size_mb = genome_size_mb,
+        estimated_haploid_genome_size_mb = estimated_haploid_genome_size_mb,
         min_hom_cov = min_hom_cov
     }
   }
