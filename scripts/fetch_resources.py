@@ -83,6 +83,12 @@ def fetch_all(manifest, dest_dir):
   skipped = []
   archive_paths = {}   # url -> downloaded archive path, this run only (shared across entries)
   archive_errors = {}  # url -> exception, so every entry sharing a failed archive is skipped
+  # Every ".part" path any download()/extract_member() call below could leave behind if it
+  # fails partway -- tracked as soon as it is attempted, not only once it succeeds, so a
+  # failure (e.g. a mid-transfer network drop on a multi-gigabyte archive) can't strand a
+  # partial file in dest_dir. Unlinking one that did complete (and was already renamed away)
+  # is a no-op.
+  part_paths = []
 
   try:
     for entry in manifest["resources"]:
@@ -109,9 +115,11 @@ def fetch_all(manifest, dest_dir):
         try:
           if url not in archive_paths:
             archive_path = dest_dir / f".archive-{hashlib.sha256(url.encode()).hexdigest()[:16]}"
+            part_paths.append(archive_path.with_name(archive_path.name + ".part"))
             print(f"{key}: downloading shared archive {url} -> {archive_path}")
             download(url, archive_path)
             archive_paths[url] = archive_path
+          part_paths.append(dest.with_name(dest.name + ".part"))
           print(f"{key}: extracting '{archive_member}' from archive -> {dest}")
           extract_member(archive_paths[url], archive_member, dest)
         except Exception as exc:  # network/tar errors vary; treat all as skip-and-report
@@ -121,6 +129,7 @@ def fetch_all(manifest, dest_dir):
           continue
       else:
         try:
+          part_paths.append(dest.with_name(dest.name + ".part"))
           print(f"{key}: downloading {entry['url']} -> {dest}")
           download(entry["url"], dest)
         except Exception as exc:  # network errors vary by platform; treat all as skip-and-report
@@ -136,6 +145,8 @@ def fetch_all(manifest, dest_dir):
 
       site_config[key] = str(dest.resolve())
   finally:
+    for path in part_paths:
+      path.unlink(missing_ok=True)
     for path in archive_paths.values():
       path.unlink(missing_ok=True)
 

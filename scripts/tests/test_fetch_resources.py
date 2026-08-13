@@ -28,6 +28,27 @@ def make_tar_bytes(members):
   return buf.getvalue()
 
 
+class FlakyResponse:
+  """Fake urlopen() response that yields a few real chunks, then raises -- simulating a
+  connection that dies mid-transfer (e.g. the SSL UNEXPECTED_EOF_WHILE_READING a dropped
+  connection surfaces as) rather than failing before anything was ever written."""
+
+  def __init__(self, chunks_before_failure, error):
+    self._chunks = list(chunks_before_failure)
+    self._error = error
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *exc_info):
+    return False
+
+  def read(self, size=-1):
+    if self._chunks:
+      return self._chunks.pop(0)
+    raise self._error
+
+
 class FetchAllTest(unittest.TestCase):
   def test_downloads_entries_with_url(self):
     manifest = {"resources": [
@@ -103,6 +124,19 @@ class FetchAllTest(unittest.TestCase):
         site_config, skipped = fr.fetch_all(manifest, Path(d))
       self.assertEqual(skipped, ["reference_cdna_fasta"])
       self.assertNotIn("reference_cdna_fasta", site_config)
+
+  def test_mid_download_failure_leaves_no_part_file_behind(self):
+    manifest = {"resources": [
+      {"config_key": "reference_cdna_fasta", "url": "https://example.invalid/cdna.fa.gz", "dest_filename": "cdna.fa.gz"},
+    ]}
+    with tempfile.TemporaryDirectory() as d:
+      dest_dir = Path(d)
+      response = FlakyResponse([b"partial-bytes"], OSError("[SSL: UNEXPECTED_EOF_WHILE_READING]"))
+      with mock.patch("urllib.request.urlopen", return_value=response):
+        site_config, skipped = fr.fetch_all(manifest, dest_dir)
+      self.assertEqual(skipped, ["reference_cdna_fasta"])
+      self.assertNotIn("reference_cdna_fasta", site_config)
+      self.assertEqual(list(dest_dir.iterdir()), [])  # no stray cdna.fa.gz.part left behind
 
 
 class FetchAllArchiveTest(unittest.TestCase):
@@ -183,6 +217,22 @@ class FetchAllArchiveTest(unittest.TestCase):
         site_config, skipped = fr.fetch_all(manifest, dest_dir)
         self.assertEqual(urlopen.call_count, 1)  # second entry doesn't retry a known-bad url
       self.assertEqual(skipped, ["chrX_no_par_yak", "chrY_no_par_yak"])
+
+  def test_mid_archive_download_failure_leaves_no_part_file_behind(self):
+    manifest = {"resources": [
+      {
+        "config_key": "par_yak", "url": "https://example.invalid/human-chrXY-yak.tar",
+        "archive_member": "par.yak", "dest_filename": "par.yak",
+      },
+    ]}
+    with tempfile.TemporaryDirectory() as d:
+      dest_dir = Path(d)
+      response = FlakyResponse([b"partial-tar-bytes"], OSError("[SSL: UNEXPECTED_EOF_WHILE_READING]"))
+      with mock.patch("urllib.request.urlopen", return_value=response):
+        site_config, skipped = fr.fetch_all(manifest, dest_dir)
+      self.assertEqual(skipped, ["par_yak"])
+      self.assertNotIn("par_yak", site_config)
+      self.assertEqual(list(dest_dir.iterdir()), [])  # no stray .archive-*.part left behind
 
   def test_uses_existing_extracted_file_without_downloading_archive(self):
     manifest = {"resources": [
