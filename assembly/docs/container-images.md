@@ -1,10 +1,9 @@
 # Container images
 
-Every task pins an image. Third-party images are pinned **by digest**, with the readable
-tag kept in a comment above each one, so that a rebuilt or retagged upstream image cannot
-change what a run executes. The images built here are pinned by tag instead, since a digest
-does not exist until CI has published it; `assembly/docker/<name>/VERSION` is the tag, and bumping it
-is how a change to a Dockerfile is published without overwriting what is already out there.
+See [../../docs/container-image-pinning.md](../../docs/container-image-pinning.md) for the
+pinning policy shared across this repository (digest-pin third-party images; tag-pin, never
+overwrite, and only move `:latest` on `main` for images built here). This document covers
+only what's specific to assembly.
 
 The three images that need building live under `assembly/docker/`:
 
@@ -21,23 +20,11 @@ assembly/docker/build_and_push.sh --push --dry-run       # report what would be 
 ```
 
 `REGISTRY` defaults to `quay.io/tafujino`; override it to publish under a different
-namespace. `.github/workflows/build-docker-images.yml` builds and publishes on pushes that
-touch `assembly/docker/`, authenticating with the `QUAY_USERNAME`/`QUAY_PASSWORD` repository secrets
-(a Quay.io robot account works well for this) rather than `GITHUB_TOKEN`, since these images
-are on Quay.io rather than GitHub Container Registry -- Cromwell's docker hash lookup, used
-for call caching, does not support `ghcr.io`. Where an image ships a script of ours,
-`build_and_push.sh` runs its `test.sh` before pushing, so a failing one is never published.
-
-## Two publishing rules
-
-The WDL pins these tags by name, so a tag has to keep meaning one thing:
-
-* **A version tag already in the registry is never overwritten.** Bump
-  `assembly/docker/<name>/VERSION` to publish a changed image; otherwise the push is skipped with a
-  warning, raised as a GitHub Actions annotation when it runs there. There is deliberately
-  no override flag.
-* **`:latest` only moves on `main`**, and only when the version tag was actually published
-  in the same run, so it always names content that a version tag also names.
+namespace, since these images are on Quay.io rather than GitHub Container Registry --
+Cromwell's docker hash lookup, used for call caching, does not support `ghcr.io`. Where an
+image ships a script of ours, `build_and_push.sh` runs its `test.sh` before pushing, so a
+failing one is never published. See [../../docs/ci.md](../../docs/ci.md) for how
+`build-docker-images.yml` runs this in CI.
 
 ## Checking the pins
 

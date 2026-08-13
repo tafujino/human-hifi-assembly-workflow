@@ -101,6 +101,15 @@ Requires the same submodule checkout as the evaluation pipeline (see
 
 See [end_to_end/docs/pipeline.md](end_to_end/docs/pipeline.md) for inputs and outputs.
 
+## CI and container images
+
+All three pipelines pin every task's container image and are checked in CI the same way. See
+[docs/ci.md](docs/ci.md) for the full list of CI jobs and
+[docs/container-image-pinning.md](docs/container-image-pinning.md) for the pinning policy
+they enforce; each project's own `docs/validation.md`/`docs/container-images.md`
+(`assembly/docs/`, `evaluation/docs/`, `end_to_end/docs/`) covers what's specific to it,
+including how to run the same checks locally.
+
 ## Licensing
 
 This repository is MIT (see `LICENSE`) **with one exception**:

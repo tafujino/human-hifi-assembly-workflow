@@ -8,18 +8,12 @@ assembly/docker/mito-blast-filter/test.sh <image>            # filter test suite
 
 ## In CI
 
-`.github/workflows/validate-wdl.yml` runs the first two on pushes and pull requests that
-touch `assembly/workflows/`, as two independent jobs:
-
-* **miniwdl check** — syntax, types and imports across every WDL document. GitHub's runners
-  have shellcheck installed, so miniwdl additionally lints each task's command block.
-  Lint findings are reported but do not fail the job; only real errors do.
-* **Pinned container images exist** — `assembly/docker/check_images.sh`. An image built from this
-  repository that has not been published yet is reported as `pending` rather than as a
-  failure, since the build workflow publishes it from the same commit.
-
-`.github/workflows/build-docker-images.yml` runs the third: `build_and_push.sh` invokes
-`assembly/docker/<name>/test.sh` after building and before pushing.
+See [../../docs/ci.md](../../docs/ci.md) for the full job list across every project in this
+repository. The three commands above map to `check-assembly`, `images-assembly`, and (for
+the filter test suite below) `build-docker-images.yml`'s `test.sh` step, respectively. An
+image built from this repository that has not been published yet is reported as `pending`
+by `images-assembly` rather than as a failure, since the build workflow publishes it from
+the same commit.
 
 ## The filter test suite
 

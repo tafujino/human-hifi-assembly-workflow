@@ -185,3 +185,4 @@ assembly needs revisiting.
 * [container-images.md](container-images.md) — how images are pinned, built and
   published
 * [validation.md](validation.md) — what is checked, locally and in CI
+* [example_inputs.md](example_inputs.md) — a full example `inputs.json`
