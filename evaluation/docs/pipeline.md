@@ -42,38 +42,11 @@ every task and workflow carries `parameter_meta`. Nine are worth calling out:
   annotation-projection reference and as asmgene's reference-side mapping target; see
   [chm13_reference.md](chm13_reference.md) for where to get it.
 * **`flagger_aligner_memory_gb`** (default 48) / **`flagger_hmm_memory_gb`** (default 32) —
-  friendlier top-level names for HMM-Flagger's own `alignerMemSize`/`flaggerMemSize`, passed
-  through to both the HiFi and ONT runs. Both defaults simply mirror flagger's own defaults
-  for these two workflow-level inputs (`alignerMemSize=48` in `long_read_aligner_scattered.wdl`,
-  `flaggerMemSize=32` in `hmm_flagger_end_to_end.wdl`) rather than changing them — at these
-  defaults the pass-through is a no-op, existing purely so a user can raise either from
-  `inputs.json` if a real run needs more. (`alignerMemSize` is *not* the same thing as the
-  underlying `alignmentBam` task's own separate 64 GB default: `long_read_aligner_scattered.wdl`
-  always explicitly binds `memSize = alignerMemSize` at its one call site, so that task-level
-  64 GB default is dead code in this call graph and 48 GB is what actually runs.) Kept at or
-  above this project's 8 GB memory floor. These two are the only vendored flagger memory knobs
-  exposed this way. Some other
-  flagger-internal tasks (e.g. three of the six annotation-projection calls inside
-  `runProjectBlocksForFlagger` -- `projectSex`/`projectCntr`/`projectCntrCt`, unlike
-  `projectBiasedBlocks`/`projectSD`/`projectAdditional`, which already hardcode `memSize=32`
-  at the call site) still run at their low vendored memory default (8 GB — already at this
-  project's memory floor, just lower than the 32 GB the other three get) with no pass-through
-  here, and — unlike the two above — this **cannot** be raised from `inputs.json` at all: Cromwell
-  rejects a fully-qualified override targeting a nested call input that no intermediate
-  workflow declares as its own (`Unexpected input provided: ...`, confirmed against this
-  project's own Cromwell). `workflows/imports/flagger` points at `tafujino/flagger`, a fork
-  kept specifically so defaults like these can be fixed directly rather than worked around
-  from the outside when they prove insufficient — see that fork's
-  `fix-augment-coverage-by-labels-crash` branch, which fixed the underlying C bug in
-  `augmentCoverageByLabels` (a per-chunk buffer sized off the wrong parameter, unused by that
-  task but still allocated at full size) that had made its default `memSize` insufficient at
-  full-genome scale (that default is back to upstream's 32 GB now that the real fix landed),
-  and separately unified every flagger task this workflow actually invokes onto this fork's
-  image (`decomposeCntrBed`/`getIndexLabeledBed`/all six `project` calls previously ran
-  upstream's unfixed image with no ill effect, since none of them touch the C bug above, but
-  keeping one image simplifies build/cache management). Memory defaults still low above
-  haven't needed the same treatment; if one does, the same path (fix in the fork, bump the
-  submodule pointer) applies rather than a Cromwell/scheduler-level workaround.
+  memory for HMM-Flagger's aligner and HMM step, applied to both the HiFi and ONT runs.
+  Defaults mirror flagger's own, so raise either from `inputs.json` if a real run needs more.
+  These are the only two vendored flagger memory knobs exposed this way — other
+  flagger-internal tasks keep their own
+  vendored defaults and aren't tunable from `inputs.json`.
 * **`reference_cdna_fasta`** — Ensembl GRCh38 cDNA/transcript FASTA, e.g.
   `Homo_sapiens.GRCh38.cdna.all.fa(.gz)`. Mapped to both `projection_reference_fasta` and
   each haplotype for asmgene; see [cdna_reference.md](cdna_reference.md) for where to get it.
