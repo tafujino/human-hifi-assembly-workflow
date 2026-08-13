@@ -65,11 +65,24 @@ and [chm13_reference.md](chm13_reference.md) for where to get each.
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/sd/chm13v2.0_SD.all.bed",
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_le6_STR.bed",
     "<PATH_TO_REPO_ROOT>/evaluation/workflows/imports/flagger/misc/stratifications/repeat_masker/chm13v2.0_RM_4.1.2p1_ge7_VNTR.bed"
-  ]
+  ],
+
+  "AssemblyEvaluation.enable_running_secphase": true,
+  "AssemblyEvaluation.flagger_aligner_options": "--eqx --cs -Y -L -y -I8g -p0.5"
 }
 ```
 
-`estimated_haploid_genome_size_mb`, `asmgene_min_identity`, and `enable_running_secphase` are
-deliberately left out: all three are optional with defaults chosen to be reasonable already
-(see [pipeline.md](pipeline.md#inputs)), and omitting them here means those defaults keep
-applying without this file having to be kept in sync if the defaults ever change.
+`estimated_haploid_genome_size_mb` and `asmgene_min_identity` are deliberately left out: both
+are optional with defaults chosen to be reasonable already (see
+[pipeline.md](pipeline.md#inputs)), and omitting them here means those defaults keep applying
+without this file having to be kept in sync if the defaults ever change.
+
+`enable_running_secphase` is the one exception shown explicitly above, set to `true` even
+though its own default is `false` (matching flagger's own default): unlike the two inputs
+above, this isn't "the default is already fine" but a deliberate recommendation — Secphase's
+read-to-haplotype phasing correction is valuable for the kind of misassembly detection this
+workflow exists for, at the cost of extra runtime, so it's surfaced here as the configuration
+to copy for that trade-off rather than left as a silent default. It's paired with
+`flagger_aligner_options` set to flagger's own default plus `-p0.5`, per flagger's own README
+recommendation for when Secphase is enabled (keeps more secondary alignments as candidates for
+Secphase to consider). Drop both lines to keep Secphase off.
