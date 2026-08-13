@@ -86,6 +86,15 @@ design decisions, the same way `assembly/workflows/` does.
 
 See [evaluation/docs/pipeline.md](evaluation/docs/pipeline.md) for inputs and outputs.
 
+## CI and container images
+
+Both pipelines pin every task's container image and are checked in CI the same way. See
+[docs/ci.md](docs/ci.md) for the full list of CI jobs and
+[docs/container-image-pinning.md](docs/container-image-pinning.md) for the pinning policy
+they enforce; each project's own `docs/validation.md`/`docs/container-images.md`
+(`assembly/docs/`, `evaluation/docs/`) covers what's specific to it, including how to run the
+same checks locally.
+
 ## Licensing
 
 This repository is MIT (see `LICENSE`) **with one exception**:
