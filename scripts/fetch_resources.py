@@ -25,18 +25,26 @@ The tar itself is downloaded once per distinct url (not once per entry) and the 
 extracted straight into dest_filename; the existing sha256 field, once known, still checks
 the extracted file itself, the same as for a directly-downloaded one.
 
+Downloads shell out to curl (requires it on PATH) rather than using urllib: on at least one
+real network, a large (~1.2GB), slow/rate-limited transfer via Python's urllib/http.client
+died partway through every time ("SSL: UNEXPECTED_EOF_WHILE_READING"), while the identical URL
+downloaded fine with curl on the same machine -- most likely curl's socket handling (e.g. it
+sets TCP_NODELAY; Python's http.client does not) coping better with a lossy/rate-limited path
+that occasionally stalls. See download()'s own docstring for the implementation.
+
 Run with: python3 scripts/fetch_resources.py --manifest <project>/workflows/scripts/resources_manifest.example.json --dest-dir /path/to/resources
 """
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import tarfile
 import time
-import urllib.request
 from pathlib import Path
 
 _MB = 1024 * 1024
+_CURL_USER_AGENT = "human-hifi-assembly-workflow/fetch_resources"
 
 
 def sha256_of(path):
@@ -58,42 +66,80 @@ def _report_progress(label, downloaded, total, interval_bytes, interval_seconds)
     print(f"{label}:  {downloaded_mb:.1f} MB downloaded, {speed_mb_s:.2f} MB/s")
 
 
-def download(url, dest, progress_label=None, progress_interval=10.0):
-  """progress_label: if given (and progress_interval > 0), a stacked-line progress report
-  ("<label>:  NN% (X MB / Y MB, Z MB/s)") is printed at most once every progress_interval
-  seconds while downloading, plus a final one once the transfer completes -- useful for a
-  large, slow transfer where the connection dropping partway (see
-  scripts/tests/test_fetch_resources.py's FlakyResponse) would otherwise be silent until it
-  fails. Percentage is omitted if the server's response has no Content-Length header.
-  progress_interval <= 0 disables reporting outright, regardless of progress_label."""
-  report = progress_label is not None and progress_interval > 0
-  request = urllib.request.Request(url, headers={"User-Agent": "human-hifi-assembly-workflow/fetch_resources"})
-  tmp = dest.with_name(dest.name + ".part")
-  with urllib.request.urlopen(request) as response, open(tmp, "wb") as fh:
-    get_header = getattr(response, "getheader", None)
-    content_length = get_header("Content-Length") if get_header else None
-    total = int(content_length) if content_length else None
+def _content_length(url):
+  """Best-effort HEAD request via curl, purely to learn the total size upfront for the
+  progress report's percentage. Never raises: returns None (no percentage shown, same as a
+  response with no Content-Length header) on any failure -- a slow/unreliable HEAD shouldn't
+  block or fail the real download that follows."""
+  try:
+    result = subprocess.run(
+      ["curl", "-sS", "-f", "-L", "-I", "-A", _CURL_USER_AGENT, url],
+      capture_output=True, text=True, timeout=30,
+    )
+  except (OSError, subprocess.TimeoutExpired):
+    return None
+  if result.returncode != 0:
+    return None
+  total = None
+  # With -L, curl prints one header block per redirect hop -- take the last Content-Length
+  # seen, i.e. the final hop's, in case an intermediate redirect response also has one.
+  for line in result.stdout.splitlines():
+    if line.lower().startswith("content-length:"):
+      try:
+        total = int(line.split(":", 1)[1].strip())
+      except ValueError:
+        pass
+  return total
 
-    downloaded = 0
-    last_report_time = time.monotonic()
-    last_report_bytes = 0
-    while True:
-      chunk = response.read(1024 * 1024)
-      if not chunk:
-        break
-      fh.write(chunk)
-      downloaded += len(chunk)
+
+def download(url, dest, progress_label=None, progress_interval=10.0):
+  """Downloads via curl, run as a subprocess (see module docstring for why). curl writes
+  straight to dest's ".part" path; meanwhile this polls that file's size once a second to
+  drive the same progress reporting the old urllib implementation had:
+  progress_label: if given (and progress_interval > 0), a stacked-line progress report
+  ("<label>:  NN% (X MB / Y MB, Z MB/s)") is printed at most once every progress_interval
+  seconds while downloading, plus a final one once the transfer completes. Percentage is
+  omitted if the preliminary HEAD request (see _content_length) can't determine the total
+  size. progress_interval <= 0 disables reporting outright, regardless of progress_label."""
+  report = progress_label is not None and progress_interval > 0
+  total = _content_length(url) if report else None
+
+  tmp = dest.with_name(dest.name + ".part")
+  stderr_path = dest.with_name(dest.name + ".curl-stderr")
+  cmd = ["curl", "-sS", "-f", "-L", "-A", _CURL_USER_AGENT, "-o", str(tmp), url]
+
+  last_report_time = time.monotonic()
+  last_report_bytes = 0
+  try:
+    with open(stderr_path, "wb") as stderr_fh:
+      # stderr goes to a file, not subprocess.PIPE: curl's own stderr is tiny (-sS silences
+      # its progress meter, leaving only error text on failure), but a PIPE risks deadlock
+      # if a child ever writes enough to fill the OS pipe buffer before we read it.
+      proc = subprocess.Popen(cmd, stderr=stderr_fh)
       if report:
-        now = time.monotonic()
-        elapsed = now - last_report_time
-        if elapsed >= progress_interval:
-          _report_progress(progress_label, downloaded, total, downloaded - last_report_bytes, elapsed)
-          last_report_time = now
-          last_report_bytes = downloaded
+        while proc.poll() is None:
+          now = time.monotonic()
+          elapsed = now - last_report_time
+          if elapsed >= progress_interval:
+            downloaded = tmp.stat().st_size if tmp.is_file() else 0
+            _report_progress(progress_label, downloaded, total, downloaded - last_report_bytes, elapsed)
+            last_report_time = now
+            last_report_bytes = downloaded
+          time.sleep(1)
+      else:
+        proc.wait()
+
+    if proc.returncode != 0:
+      stderr_text = stderr_path.read_text(errors="replace").strip()
+      raise RuntimeError(f"curl exited {proc.returncode} for {url}" + (f": {stderr_text}" if stderr_text else ""))
+
     if report:
+      downloaded = tmp.stat().st_size if tmp.is_file() else 0
       _report_progress(
         progress_label, downloaded, total, downloaded - last_report_bytes, time.monotonic() - last_report_time
       )
+  finally:
+    stderr_path.unlink(missing_ok=True)
   tmp.replace(dest)
 
 
