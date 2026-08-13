@@ -35,7 +35,7 @@ Each test file also documents its own run command in its module docstring.
 ## The generate_inputs.py test suite
 
 The same directory also covers `generate_inputs.py` (see [generate_inputs.md](generate_inputs.md)):
-its own sample sheet validation (exactly one `hap1_assembly_fasta`/`hap2_assembly_fasta` row,
+its own sample sheet validation (exactly one `hap1_fasta`/`hap2_fasta` row,
 at least one `hifi_read_file` row) and `AssemblyEvaluation`-shaped `build_inputs()` output.
 The sample sheet/site config/repo-path mechanics it builds on are shared with
 `end_to_end`'s own generator and covered once, by `scripts/tests/` at the top level instead

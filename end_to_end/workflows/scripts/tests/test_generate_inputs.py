@@ -25,7 +25,7 @@ def touch(path):
 
 class LoadSampleSheetTest(unittest.TestCase):
   def _sheet(self, d, rows):
-    header = "sample_name\tsample_sex\tont_preset\tfile_role\tfile_path"
+    header = "sample_name\tfield\tvalue"
     lines = [header] + ["\t".join(r) for r in rows]
     path = d / "sheet.tsv"
     path.write_text("\n".join(lines) + "\n")
@@ -36,9 +36,11 @@ class LoadSampleSheetTest(unittest.TestCase):
       d = Path(d)
       bam1, bam2, ont = touch(d / "a.bam"), touch(d / "b.bam"), touch(d / "ont.fastq.gz")
       sheet = self._sheet(d, [
-        ("HG002", "male", "ont-r10", "unaligned_bam", str(bam1)),
-        ("HG002", "male", "ont-r10", "unaligned_bam", str(bam2)),
-        ("HG002", "male", "ont-r10", "ont_ul_fastq", str(ont)),
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "ont_preset", "ont-r10"),
+        ("HG002", "unaligned_bam", str(bam1)),
+        ("HG002", "unaligned_bam", str(bam2)),
+        ("HG002", "ont_ul_fastq", str(ont)),
       ])
       samples = gi.load_sample_sheet(sheet)
       self.assertEqual(len(samples), 1)
@@ -54,7 +56,10 @@ class LoadSampleSheetTest(unittest.TestCase):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       ont = touch(d / "ont.fastq.gz")
-      sheet = self._sheet(d, [("HG002", "male", "ont-r10", "ont_ul_fastq", str(ont))])
+      sheet = self._sheet(d, [
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "ont_ul_fastq", str(ont)),
+      ])
       with self.assertRaisesRegex(ValueError, "unaligned_bam"):
         gi.load_sample_sheet(sheet)
 
@@ -62,7 +67,7 @@ class LoadSampleSheetTest(unittest.TestCase):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       bam = touch(d / "a.bam")
-      sheet = self._sheet(d, [("HG002", "", "", "unaligned_bam", str(bam))])
+      sheet = self._sheet(d, [("HG002", "unaligned_bam", str(bam))])
       with self.assertRaisesRegex(ValueError, "sample_sex"):
         gi.load_sample_sheet(sheet)
 
@@ -71,8 +76,9 @@ class LoadSampleSheetTest(unittest.TestCase):
       d = Path(d)
       bam, father = touch(d / "a.bam"), touch(d / "father.fastq.gz")
       sheet = self._sheet(d, [
-        ("HG002", "male", "", "unaligned_bam", str(bam)),
-        ("HG002", "male", "", "paternal_illumina_fastq", str(father)),
+        ("HG002", "sample_sex", "male"),
+        ("HG002", "unaligned_bam", str(bam)),
+        ("HG002", "paternal_illumina_fastq", str(father)),
       ])
       with self.assertRaisesRegex(ValueError, "paternal_illumina_fastq"):
         gi.load_sample_sheet(sheet)

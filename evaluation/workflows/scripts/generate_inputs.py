@@ -27,29 +27,29 @@ SITE_CONFIG_KEYS = (
   "projection_reference_fasta",
 )
 
-FILE_ROLE_TO_INPUT_KEY = {
-  "hap1_assembly_fasta": "hap1_assembly_fasta",
-  "hap2_assembly_fasta": "hap2_assembly_fasta",
+FIELD_TO_KEY = {
+  "hap1_fasta": "hap1_assembly_fasta",
+  "hap2_fasta": "hap2_assembly_fasta",
   "hifi_read_file": "hifi_read_files",
   "ont_read_file": "ont_read_files",
 }
 
 # ont_preset is a per-sample scalar but optional (meaningless for a sample with no
 # ont_read_file rows) -- see load_sample_sheet.
-SCALAR_COLUMNS = ("ont_preset",)
+SCALAR_FIELDS = ("ont_preset",)
 
 
 def load_sample_sheet(path):
-  samples = common.load_sample_sheet(path, FILE_ROLE_TO_INPUT_KEY, SCALAR_COLUMNS)
+  samples = common.load_sample_sheet(path, FIELD_TO_KEY, SCALAR_FIELDS)
   for sample in samples:
     if len(sample["hap1_assembly_fasta"]) != 1:
       raise ValueError(
-        f"sample '{sample['sample_name']}': exactly one hap1_assembly_fasta row is "
+        f"sample '{sample['sample_name']}': exactly one hap1_fasta row is "
         f"required, got {len(sample['hap1_assembly_fasta'])}"
       )
     if len(sample["hap2_assembly_fasta"]) != 1:
       raise ValueError(
-        f"sample '{sample['sample_name']}': exactly one hap2_assembly_fasta row is "
+        f"sample '{sample['sample_name']}': exactly one hap2_fasta row is "
         f"required, got {len(sample['hap2_assembly_fasta'])}"
       )
     if not sample["hifi_read_files"]:

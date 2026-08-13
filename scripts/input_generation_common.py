@@ -8,7 +8,7 @@ is generic (no assumption about which of the two workflows is calling it): the v
 flagger/calN50 paths, the ont_preset -> alpha tsv lookup, and the SecPhase on/off pairing are
 the exact same values for both, since both call into the same vendored flagger workflow with
 the same recommended settings. What differs between the two callers -- which site config
-keys are required, the sample sheet's file_role vocabulary, per-workflow validation (e.g.
+keys are required, the sample sheet's field vocabulary, per-workflow validation (e.g.
 "at least one unaligned_bam" vs "exactly one hap1_assembly_fasta"), and the final
 `<Workflow>.*`-prefixed key set -- stays in each caller's own generate_inputs.py.
 
@@ -119,28 +119,39 @@ def load_site_config(path, required_keys):
   return {key: config[key] for key in required_keys}
 
 
-def load_sample_sheet(path, file_role_to_key, scalar_columns=()):
-  """Parses a long-format sample sheet: one row per file, not per sample, so a sample with
-  several files for the same role (e.g. one unaligned_bam per SMRT cell) just gets more rows.
+def load_sample_sheet(path, field_to_key, scalar_fields=()):
+  """Parses a long-format sample sheet: one row per (sample, field) pair -- three columns,
+  `sample_name` / `field` / `value` -- rather than one row per sample or one column per field.
+  A sample with several files for the same field (e.g. one unaligned_bam per SMRT cell) just
+  gets more rows, and a scalar field (e.g. sample_sex) that would otherwise repeat identically
+  across every one of a sample's rows instead gets exactly one row of its own.
 
-  file_role_to_key: {sheet file_role value -> key in the returned per-sample dict that
-    accumulates a list of file paths}.
-  scalar_columns: names of additional per-sample columns (e.g. "sample_sex", "ont_preset"),
-    each collected as a single value consistent across a sample's own rows (None if every row
-    leaves it blank; raises if a sample gives more than one distinct non-blank value).
+  field_to_key: {sheet `field` value -> key in the returned per-sample dict that accumulates a
+    list of values}, for fields that can repeat per sample (typically file paths -- each value
+    is checked to be an existing file).
+  scalar_fields: names of fields that take exactly one consistent value per sample (e.g.
+    "sample_sex", "ont_preset"), collected under that same name (None if the sample has no row
+    for it at all; raises if a sample gives more than one distinct value across its rows). A
+    scalar value is passed through as-is, not checked as a file path.
 
-  Returns an ordered list of per-sample dicts: {"sample_name": ..., <scalar_columns>: ...,
-  <file_role_to_key values>: [...]}. Callers are responsible for their own required-role/count
+  Every row's `field` must be one of field_to_key's keys or one of scalar_fields, and its
+  `value` must be non-empty -- there is no "leave the cell blank" way to omit a field here,
+  since omitting it means not writing that row at all.
+
+  Returns an ordered list of per-sample dicts: {"sample_name": ..., <scalar_fields>: ...,
+  <field_to_key values>: [...]}. Callers are responsible for their own required-field/count
   validation (e.g. "at least one X", "Y and Z together or not at all", "exactly one Z") since
   that varies by workflow -- this function only handles the generic parsing/grouping.
   """
-  required_columns = ("sample_name", "file_role", "file_path") + tuple(scalar_columns)
+  required_columns = ("sample_name", "field", "value")
   with open(path, newline="") as fh:
     reader = csv.DictReader(fh, delimiter="\t")
     missing = [c for c in required_columns if c not in (reader.fieldnames or [])]
     if missing:
       raise ValueError(f"sample sheet {path} is missing column(s): {', '.join(missing)}")
     rows = list(reader)
+
+  known_fields = set(field_to_key) | set(scalar_fields)
 
   by_sample = {}
   order = []
@@ -149,39 +160,36 @@ def load_sample_sheet(path, file_role_to_key, scalar_columns=()):
     if not sample_name:
       raise ValueError(f"{path}:{line_no}: empty sample_name")
 
-    file_role = (row["file_role"] or "").strip()
-    if file_role not in file_role_to_key:
+    field = (row["field"] or "").strip()
+    if field not in known_fields:
       raise ValueError(
-        f"{path}:{line_no}: unknown file_role '{file_role}' "
-        f"(expected one of {sorted(file_role_to_key)})"
+        f"{path}:{line_no}: unknown field '{field}' (expected one of {sorted(known_fields)})"
       )
 
-    file_path = (row["file_path"] or "").strip()
-    if not file_path:
-      raise ValueError(f"{path}:{line_no}: empty file_path")
-    if not os.path.isfile(file_path):
-      raise ValueError(f"{path}:{line_no}: file_path does not exist: {file_path}")
+    value = (row["value"] or "").strip()
+    if not value:
+      raise ValueError(f"{path}:{line_no}: empty value for field '{field}'")
 
     if sample_name not in by_sample:
       order.append(sample_name)
       by_sample[sample_name] = {
         "sample_name": sample_name,
-        **{col: set() for col in scalar_columns},
-        **{key: [] for key in set(file_role_to_key.values())},
+        **{col: set() for col in scalar_fields},
+        **{key: [] for key in set(field_to_key.values())},
       }
     entry = by_sample[sample_name]
 
-    for col in scalar_columns:
-      value = (row[col] or "").strip()
-      if value:
-        entry[col].add(value)
-
-    entry[file_role_to_key[file_role]].append(file_path)
+    if field in scalar_fields:
+      entry[field].add(value)
+    else:
+      if not os.path.isfile(value):
+        raise ValueError(f"{path}:{line_no}: value for field '{field}' does not exist: {value}")
+      entry[field_to_key[field]].append(value)
 
   samples = []
   for sample_name in order:
     entry = by_sample[sample_name]
-    for col in scalar_columns:
+    for col in scalar_fields:
       if len(entry[col]) > 1:
         raise ValueError(
           f"sample '{sample_name}': {col} must be consistent across its rows, "

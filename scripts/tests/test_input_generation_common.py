@@ -56,104 +56,90 @@ class LoadSiteConfigTest(unittest.TestCase):
 
 
 class LoadSampleSheetTest(unittest.TestCase):
-  def _sheet(self, d, columns, rows):
-    lines = ["\t".join(columns)] + ["\t".join(r) for r in rows]
+  def _sheet(self, d, rows):
+    lines = ["sample_name\tfield\tvalue"] + ["\t".join(r) for r in rows]
     path = d / "sheet.tsv"
     path.write_text("\n".join(lines) + "\n")
     return path
 
-  def test_groups_by_sample_and_buckets_file_roles(self):
+  def test_groups_by_sample_and_buckets_fields(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a, b = touch(d / "a.txt"), touch(d / "b.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path"),
-        [("S1", "role_a", str(a)), ("S1", "role_b", str(b))],
-      )
+      sheet = self._sheet(d, [("S1", "role_a", str(a)), ("S1", "role_b", str(b))])
       samples = common.load_sample_sheet(sheet, {"role_a": "key_a", "role_b": "key_b"})
       self.assertEqual(len(samples), 1)
       self.assertEqual(samples[0]["key_a"], [str(a)])
       self.assertEqual(samples[0]["key_b"], [str(b)])
 
-  def test_multiple_roles_can_share_the_same_key(self):
+  def test_multiple_fields_can_share_the_same_key(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a, b = touch(d / "a.txt"), touch(d / "b.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path"),
-        [("S1", "role_a", str(a)), ("S1", "role_b", str(b))],
-      )
+      sheet = self._sheet(d, [("S1", "role_a", str(a)), ("S1", "role_b", str(b))])
       samples = common.load_sample_sheet(sheet, {"role_a": "shared_key", "role_b": "shared_key"})
       self.assertEqual(sorted(samples[0]["shared_key"]), sorted([str(a), str(b)]))
 
-  def test_scalar_column_consistent_across_rows(self):
+  def test_scalar_field_consistent_across_rows(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a = touch(d / "a.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path", "sex"),
-        [("S1", "role_a", str(a), "male"), ("S1", "role_a", str(a), "male")],
-      )
-      samples = common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_columns=("sex",))
+      sheet = self._sheet(d, [("S1", "role_a", str(a)), ("S1", "sex", "male"), ("S1", "sex", "male")])
+      samples = common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_fields=("sex",))
       self.assertEqual(samples[0]["sex"], "male")
 
-  def test_scalar_column_left_blank_everywhere_is_none(self):
+  def test_scalar_field_with_no_rows_is_none(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a = touch(d / "a.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path", "sex"),
-        [("S1", "role_a", str(a), "")],
-      )
-      samples = common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_columns=("sex",))
+      sheet = self._sheet(d, [("S1", "role_a", str(a))])
+      samples = common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_fields=("sex",))
       self.assertIsNone(samples[0]["sex"])
 
-  def test_inconsistent_scalar_column_raises(self):
+  def test_inconsistent_scalar_field_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a = touch(d / "a.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path", "sex"),
-        [("S1", "role_a", str(a), "male"), ("S1", "role_a", str(a), "female")],
-      )
+      sheet = self._sheet(d, [("S1", "role_a", str(a)), ("S1", "sex", "male"), ("S1", "sex", "female")])
       with self.assertRaisesRegex(ValueError, "sex"):
-        common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_columns=("sex",))
+        common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_fields=("sex",))
 
   def test_two_samples_are_kept_independent(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a, b = touch(d / "a.txt"), touch(d / "b.txt")
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path"),
-        [("S1", "role_a", str(a)), ("S2", "role_a", str(b))],
-      )
+      sheet = self._sheet(d, [("S1", "role_a", str(a)), ("S2", "role_a", str(b))])
       samples = common.load_sample_sheet(sheet, {"role_a": "key_a"})
       self.assertEqual([s["sample_name"] for s in samples], ["S1", "S2"])
 
-  def test_unknown_file_role_raises(self):
+  def test_unknown_field_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       a = touch(d / "a.txt")
-      sheet = self._sheet(d, ("sample_name", "file_role", "file_path"), [("S1", "not_a_role", str(a))])
-      with self.assertRaisesRegex(ValueError, "file_role"):
+      sheet = self._sheet(d, [("S1", "not_a_role", str(a))])
+      with self.assertRaisesRegex(ValueError, "unknown field"):
         common.load_sample_sheet(sheet, {"role_a": "key_a"})
 
-  def test_nonexistent_file_path_raises(self):
+  def test_nonexistent_file_value_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
-      sheet = self._sheet(
-        d, ("sample_name", "file_role", "file_path"),
-        [("S1", "role_a", str(d / "missing.txt"))],
-      )
+      sheet = self._sheet(d, [("S1", "role_a", str(d / "missing.txt"))])
       with self.assertRaises(ValueError):
         common.load_sample_sheet(sheet, {"role_a": "key_a"})
+
+  def test_empty_value_raises(self):
+    with tempfile.TemporaryDirectory() as d:
+      d = Path(d)
+      sheet = self._sheet(d, [("S1", "sex", "")])
+      with self.assertRaisesRegex(ValueError, "empty value"):
+        common.load_sample_sheet(sheet, {"role_a": "key_a"}, scalar_fields=("sex",))
 
   def test_missing_column_raises(self):
     with tempfile.TemporaryDirectory() as d:
       d = Path(d)
       path = d / "sheet.tsv"
-      path.write_text("sample_name\tfile_role\n")
-      with self.assertRaisesRegex(ValueError, "file_path"):
+      path.write_text("sample_name\tfield\n")
+      with self.assertRaisesRegex(ValueError, "value"):
         common.load_sample_sheet(path, {"role_a": "key_a"})
 
 

@@ -29,7 +29,7 @@ SITE_CONFIG_KEYS = (
   "projection_reference_fasta",
 )
 
-FILE_ROLE_TO_INPUT_KEY = {
+FIELD_TO_KEY = {
   "unaligned_bam": "unaligned_bams",
   "ont_ul_fastq": "ont_ul_fastq",
   "paternal_illumina_fastq": "paternal_illumina_fastq",
@@ -38,11 +38,11 @@ FILE_ROLE_TO_INPUT_KEY = {
 
 # sample_sex is a per-sample scalar and required; ont_preset is a per-sample scalar but
 # optional (meaningless for a sample with no ont_ul_fastq rows) -- see load_sample_sheet.
-SCALAR_COLUMNS = ("sample_sex", "ont_preset")
+SCALAR_FIELDS = ("sample_sex", "ont_preset")
 
 
 def load_sample_sheet(path):
-  samples = common.load_sample_sheet(path, FILE_ROLE_TO_INPUT_KEY, SCALAR_COLUMNS)
+  samples = common.load_sample_sheet(path, FIELD_TO_KEY, SCALAR_FIELDS)
   for sample in samples:
     if sample["sample_sex"] is None:
       raise ValueError(

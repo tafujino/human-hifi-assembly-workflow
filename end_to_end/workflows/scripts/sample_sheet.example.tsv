@@ -1,7 +1,10 @@
-sample_name	sample_sex	ont_preset	file_role	file_path
-HG002	male	ont-r10	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220901_175841.hifi_reads.bam
-HG002	male	ont-r10	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220902_183213.hifi_reads.bam
-HG002	male	ont-r10	ont_ul_fastq	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
-HG002	male	ont-r10	paternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG003_illumina.fastq.gz
-HG002	male	ont-r10	maternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG004_illumina.fastq.gz
-HG005	female		unaligned_bam	<PATH_TO_DATA>/HG005/m84011_230101_100000.hifi_reads.bam
+sample_name	field	value
+HG002	sample_sex	male
+HG002	ont_preset	ont-r10
+HG002	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220901_175841.hifi_reads.bam
+HG002	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220902_183213.hifi_reads.bam
+HG002	ont_ul_fastq	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
+HG002	paternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG003_illumina.fastq.gz
+HG002	maternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG004_illumina.fastq.gz
+HG005	sample_sex	female
+HG005	unaligned_bam	<PATH_TO_DATA>/HG005/m84011_230101_100000.hifi_reads.bam

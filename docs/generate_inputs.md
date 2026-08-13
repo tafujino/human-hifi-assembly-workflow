@@ -8,7 +8,7 @@ mostly-identical block each project's own `example_inputs.md` shows. This docume
 single place describing the shared design; each project's own
 [evaluation/docs/generate_inputs.md](../evaluation/docs/generate_inputs.md) /
 [end_to_end/docs/generate_inputs.md](../end_to_end/docs/generate_inputs.md) covers only what
-is specific to it (the sample sheet's `file_role` vocabulary, its own site config key subset,
+is specific to it (the sample sheet's `field` vocabulary, its own site config key subset,
 its own `<Workflow>.*`-prefixed output) -- the same split `docs/ci.md` uses for CI.
 
 The two generators build the same three independent layers, which vary for different
@@ -16,7 +16,7 @@ reasons:
 
 | Layer | Varies by | File |
 | --- | --- | --- |
-| Sample sheet | sample | your own, long-format TSV (schema is project-specific) |
+| Sample sheet | sample | your own, long-format 3-column (`sample_name`/`field`/`value`) TSV (field vocabulary is project-specific) |
 | Site config | machine/institution | hand-written, or produced by `fetch_resources.py` |
 | This repository's own checkout | nothing (fixed once vendored) | not a file -- resolved from `scripts/input_generation_common.py`'s own location |
 
@@ -49,12 +49,15 @@ stale after the other is updated), it lives once in
   either caller regardless of which project it's in) and fails fast, before touching any
   sample, if a vendored submodule was never checked out
   (`git submodule update --init --recursive`; see the top-level [README.md](../README.md#setup))
-* `load_site_config(path, required_keys)` / `load_sample_sheet(path, file_role_to_key,
-  scalar_columns)` -- the generic mechanics of validating a site config against whatever
-  subset of keys a caller requires, and of parsing/grouping a long-format sample sheet by
-  `sample_name` given that caller's own `file_role` vocabulary. Each caller supplies its own
-  required-role/count validation on top (e.g. "at least one unaligned_bam" vs "exactly one
-  hap1_assembly_fasta"), since that genuinely differs by workflow.
+* `load_site_config(path, required_keys)` / `load_sample_sheet(path, field_to_key,
+  scalar_fields)` -- the generic mechanics of validating a site config against whatever
+  subset of keys a caller requires, and of parsing/grouping a long-format, 3-column
+  (`sample_name`/`field`/`value`) sample sheet by `sample_name` given that caller's own field
+  vocabulary (`field_to_key` for fields that can repeat per sample, typically file paths;
+  `scalar_fields` for fields that take exactly one consistent value per sample, e.g.
+  `sample_sex`, `ont_preset`). Each caller supplies its own required-field/count validation on
+  top (e.g. "at least one unaligned_bam" vs "exactly one hap1_fasta"), since that genuinely
+  differs by workflow.
 
 Lives at the top level, the same way `scripts/registry_lib.sh` does, because none of it
 assumes which of the two workflows is calling it.

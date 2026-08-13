@@ -6,34 +6,39 @@ This document covers only what's specific to `EndToEndAssembly`.
 
 ## Sample sheet
 
-Long format: one row per **file**, not per sample, so a sample with several `unaligned_bams`
-(one per SMRT cell) or both trio parents just gets more rows rather than a delimiter-packed
-cell. See [`sample_sheet.example.tsv`](../workflows/scripts/sample_sheet.example.tsv):
+Long format: one row per (sample, field) pair, not one row per sample or one column per
+field, so a sample with several `unaligned_bams` (one per SMRT cell) or both trio parents just
+gets more rows rather than a delimiter-packed cell. Three fixed columns -- `sample_name`,
+`field`, `value` -- so adding or leaving out a field never changes the header. See
+[`sample_sheet.example.tsv`](../workflows/scripts/sample_sheet.example.tsv):
 
 ```
-sample_name	sample_sex	ont_preset	file_role	file_path
-HG002	male	ont-r10	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220901_175841.hifi_reads.bam
-HG002	male	ont-r10	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220902_183213.hifi_reads.bam
-HG002	male	ont-r10	ont_ul_fastq	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
-HG002	male	ont-r10	paternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG003_illumina.fastq.gz
-HG002	male	ont-r10	maternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG004_illumina.fastq.gz
-HG005	female		unaligned_bam	<PATH_TO_DATA>/HG005/m84011_230101_100000.hifi_reads.bam
+sample_name	field	value
+HG002	sample_sex	male
+HG002	ont_preset	ont-r10
+HG002	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220901_175841.hifi_reads.bam
+HG002	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220902_183213.hifi_reads.bam
+HG002	ont_ul_fastq	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
+HG002	paternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG003_illumina.fastq.gz
+HG002	maternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG004_illumina.fastq.gz
+HG005	sample_sex	female
+HG005	unaligned_bam	<PATH_TO_DATA>/HG005/m84011_230101_100000.hifi_reads.bam
 ```
 
-`sample_name` and `sample_sex` repeat on every row of a given sample; `generate_inputs.py`
-groups by `sample_name` and fails if `sample_sex` (or, when given, `ont_preset`) disagrees
-across a sample's own rows. `file_role` is one of `unaligned_bam`, `ont_ul_fastq`,
-`paternal_illumina_fastq`, `maternal_illumina_fastq`, and buckets `file_path` into the
-matching `EndToEndAssembly` array input.
+`generate_inputs.py` groups by `sample_name` and fails if `sample_sex` (or, when given,
+`ont_preset`) disagrees across a sample's own rows -- each is written once per sample rather
+than repeated on every one of that sample's rows. `field` is one of `unaligned_bam`,
+`ont_ul_fastq`, `paternal_illumina_fastq`, `maternal_illumina_fastq` (each bucketing `value`
+into the matching `EndToEndAssembly` array input), plus the scalars `sample_sex`/`ont_preset`.
 
 `ont_preset` (`ont-r9`/`ont-r10`) lives here rather than in the site config or a fixed
 preset, because it describes a property of that sample's own ONT reads (the chemistry they
 were basecalled with), not something a site or a run-wide policy decides.
-`generate_inputs.py` uses it to pick the matching `ont_alpha_tsv` automatically. Leave it
-blank for a sample with no `ont_ul_fastq` rows.
+`generate_inputs.py` uses it to pick the matching `ont_alpha_tsv` automatically. Omit it
+entirely for a sample with no `ont_ul_fastq` rows.
 
-Validated before anything is generated: every `file_path` must exist, every sample needs
-`sample_sex` given exactly once and consistently, at least one `unaligned_bam` row, and
+Validated before anything is generated: every file-field `value` must exist, every sample
+needs `sample_sex` given exactly once and consistently, at least one `unaligned_bam` row, and
 `paternal_illumina_fastq`/`maternal_illumina_fastq` must be given together or omitted
 together (trio binning needs both parents -- the same rule
 `assembly/workflows/validate_inputs.wdl` enforces at run time, checked here too so a typo

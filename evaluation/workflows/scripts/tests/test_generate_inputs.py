@@ -26,7 +26,7 @@ def touch(path):
 
 class LoadSampleSheetTest(unittest.TestCase):
   def _sheet(self, d, rows):
-    header = "sample_name\tont_preset\tfile_role\tfile_path"
+    header = "sample_name\tfield\tvalue"
     lines = [header] + ["\t".join(r) for r in rows]
     path = d / "sheet.tsv"
     path.write_text("\n".join(lines) + "\n")
@@ -37,9 +37,10 @@ class LoadSampleSheetTest(unittest.TestCase):
       d = Path(d)
       hap1, hap2, hifi = touch(d / "hap1.fa.gz"), touch(d / "hap2.fa.gz"), touch(d / "hifi.fastq.gz")
       sheet = self._sheet(d, [
-        ("HG002", "ont-r10", "hap1_assembly_fasta", str(hap1)),
-        ("HG002", "ont-r10", "hap2_assembly_fasta", str(hap2)),
-        ("HG002", "ont-r10", "hifi_read_file", str(hifi)),
+        ("HG002", "ont_preset", "ont-r10"),
+        ("HG002", "hap1_fasta", str(hap1)),
+        ("HG002", "hap2_fasta", str(hap2)),
+        ("HG002", "hifi_read_file", str(hifi)),
       ])
       samples = gi.load_sample_sheet(sheet)
       self.assertEqual(len(samples), 1)
@@ -56,10 +57,10 @@ class LoadSampleSheetTest(unittest.TestCase):
       d = Path(d)
       hap2, hifi = touch(d / "hap2.fa.gz"), touch(d / "hifi.fastq.gz")
       sheet = self._sheet(d, [
-        ("HG002", "", "hap2_assembly_fasta", str(hap2)),
-        ("HG002", "", "hifi_read_file", str(hifi)),
+        ("HG002", "hap2_fasta", str(hap2)),
+        ("HG002", "hifi_read_file", str(hifi)),
       ])
-      with self.assertRaisesRegex(ValueError, "hap1_assembly_fasta"):
+      with self.assertRaisesRegex(ValueError, "hap1_fasta"):
         gi.load_sample_sheet(sheet)
 
   def test_duplicate_hap2_raises(self):
@@ -69,12 +70,12 @@ class LoadSampleSheetTest(unittest.TestCase):
         touch(d / "hap1.fa.gz"), touch(d / "hap2a.fa.gz"), touch(d / "hap2b.fa.gz"), touch(d / "hifi.fastq.gz")
       )
       sheet = self._sheet(d, [
-        ("HG002", "", "hap1_assembly_fasta", str(hap1)),
-        ("HG002", "", "hap2_assembly_fasta", str(hap2a)),
-        ("HG002", "", "hap2_assembly_fasta", str(hap2b)),
-        ("HG002", "", "hifi_read_file", str(hifi)),
+        ("HG002", "hap1_fasta", str(hap1)),
+        ("HG002", "hap2_fasta", str(hap2a)),
+        ("HG002", "hap2_fasta", str(hap2b)),
+        ("HG002", "hifi_read_file", str(hifi)),
       ])
-      with self.assertRaisesRegex(ValueError, "hap2_assembly_fasta"):
+      with self.assertRaisesRegex(ValueError, "hap2_fasta"):
         gi.load_sample_sheet(sheet)
 
   def test_missing_hifi_read_file_raises(self):
@@ -82,8 +83,8 @@ class LoadSampleSheetTest(unittest.TestCase):
       d = Path(d)
       hap1, hap2 = touch(d / "hap1.fa.gz"), touch(d / "hap2.fa.gz")
       sheet = self._sheet(d, [
-        ("HG002", "", "hap1_assembly_fasta", str(hap1)),
-        ("HG002", "", "hap2_assembly_fasta", str(hap2)),
+        ("HG002", "hap1_fasta", str(hap1)),
+        ("HG002", "hap2_fasta", str(hap2)),
       ])
       with self.assertRaisesRegex(ValueError, "hifi_read_file"):
         gi.load_sample_sheet(sheet)

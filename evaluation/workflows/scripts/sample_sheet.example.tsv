@@ -1,8 +1,9 @@
-sample_name	ont_preset	file_role	file_path
-HG002	ont-r10	hap1_assembly_fasta	<PATH_TO_DATA>/HG002/HG002.hap1.fa.gz
-HG002	ont-r10	hap2_assembly_fasta	<PATH_TO_DATA>/HG002/HG002.hap2.fa.gz
-HG002	ont-r10	hifi_read_file	<PATH_TO_DATA>/HG002/HG002.trimmed_hifi.fastq.gz
-HG002	ont-r10	ont_read_file	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
-HG005		hap1_assembly_fasta	<PATH_TO_DATA>/HG005/HG005.hap1.fa.gz
-HG005		hap2_assembly_fasta	<PATH_TO_DATA>/HG005/HG005.hap2.fa.gz
-HG005		hifi_read_file	<PATH_TO_DATA>/HG005/HG005.trimmed_hifi.fastq.gz
+sample_name	field	value
+HG002	ont_preset	ont-r10
+HG002	hap1_fasta	<PATH_TO_DATA>/HG002/HG002.hap1.fa.gz
+HG002	hap2_fasta	<PATH_TO_DATA>/HG002/HG002.hap2.fa.gz
+HG002	hifi_read_file	<PATH_TO_DATA>/HG002/HG002.trimmed_hifi.fastq.gz
+HG002	ont_read_file	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
+HG005	hap1_fasta	<PATH_TO_DATA>/HG005/HG005.hap1.fa.gz
+HG005	hap2_fasta	<PATH_TO_DATA>/HG005/HG005.hap2.fa.gz
+HG005	hifi_read_file	<PATH_TO_DATA>/HG005/HG005.trimmed_hifi.fastq.gz
