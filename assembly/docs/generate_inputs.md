@@ -27,8 +27,8 @@ HG002	unaligned_bam	<PATH_TO_DATA>/HG002/m84011_220902_183213.hifi_reads.bam
 HG002	ont_ul_fastq	<PATH_TO_DATA>/HG002/HG002_ont_ul.fastq.gz
 HG002	paternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG003_illumina.fastq.gz
 HG002	maternal_illumina_fastq	<PATH_TO_DATA>/HG002/HG004_illumina.fastq.gz
-HG005	sample_sex	female
-HG005	unaligned_bam	<PATH_TO_DATA>/HG005/m84011_230101_100000.hifi_reads.bam
+HG001	sample_sex	female
+HG001	unaligned_bam	<PATH_TO_DATA>/HG001/m84011_230101_100000.hifi_reads.bam
 ```
 
 `generate_inputs.py` groups by `sample_name` and fails if `sample_sex` disagrees across a
@@ -59,8 +59,8 @@ example, and why this generator doesn't need to be kept in sync if one of those 
 changes. Give it a row and `generate_inputs.py` type-checks and forwards the value:
 
 ```
-HG005	assemble_mitogenome	false
-HG005	min_hom_cov	3
+HG001	assemble_mitogenome	false
+HG001	min_hom_cov	3
 ```
 
 Same cross-field leniency as the WDL itself: e.g. `ul_cut` with no `ont_ul_fastq` row, or
