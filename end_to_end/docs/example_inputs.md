@@ -23,7 +23,9 @@ separately; see
 [evaluation/docs/chm13_reference.md](../../evaluation/docs/chm13_reference.md). Similarly,
 `mito_reference_fasta`/`mito_reference_gb` are not vendored; see
 [assembly/docs/mitochondrial.md](../../assembly/docs/mitochondrial.md). `chrY_no_par_yak` /
-`chrX_no_par_yak` / `par_yak` come from the [yak](https://github.com/lh3/yak) repository.
+`chrX_no_par_yak` / `par_yak` come from the [yak](https://github.com/lh3/yak) repository's
+precomputed Zenodo archive -- `fetch_resources.py` can pull all three automatically, see
+[../../docs/generate_inputs.md](../../docs/generate_inputs.md#fetch_resourcespy).
 
 ```json
 {

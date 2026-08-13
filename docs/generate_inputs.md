@@ -78,14 +78,25 @@ python3 scripts/fetch_resources.py \
   --dest-dir /path/to/resources
 ```
 
-A manifest entry with no `url` (the three yak k-mer databases, which have no fixed public
-download location -- see the [yak repository](https://github.com/lh3/yak)) is left out of the
-generated site config with a warning; fill in a `url` once you have one, or place the file at
-its `dest_filename` under `--dest-dir` yourself and rerun. Rerunning is otherwise safe: a
-resource whose `dest_filename` already exists is never re-downloaded, and the site config is
-regenerated fully each time rather than merged -- to point a key at a path outside this
-mechanism entirely, hand-edit the site config afterward instead of rerunning
-`fetch_resources.py` over it.
+A manifest entry with no `url` at all is left out of the generated site config with a
+warning; fill in a `url` once you have one, or place the file at its `dest_filename` under
+`--dest-dir` yourself and rerun.
+
+The three yak k-mer databases (`chrY_no_par_yak`/`chrX_no_par_yak`/`par_yak`) aren't hosted
+individually -- lh3/yak (https://github.com/lh3/yak) bundles all three into one
+`human-chrXY-yak.tar` on [Zenodo](https://zenodo.org/records/7882299) (~1.2GB). Their manifest
+entries share that one `url` and each set `archive_member` to their own filename inside the
+tar (`chrY-no-par.yak`, `chrX-no-par.yak`, `par.yak`); `fetch_resources.py` downloads the tar
+once -- not once per entry -- and extracts each member straight into its `dest_filename`. Any
+future resource in the same situation (several `config_key`s sharing one archive) uses the
+same `url` + `archive_member` pairing; a plain single-file resource just omits
+`archive_member`.
+
+Rerunning is otherwise safe: a resource whose `dest_filename` already exists is never
+re-downloaded (an already-extracted yak file is left alone too, so the shared tar isn't
+re-fetched just because a sibling entry is missing), and the site config is regenerated fully
+each time rather than merged -- to point a key at a path outside this mechanism entirely,
+hand-edit the site config afterward instead of rerunning `fetch_resources.py` over it.
 
 ## Tests
 

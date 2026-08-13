@@ -23,21 +23,24 @@
     },
     {
       "config_key": "chrY_no_par_yak",
-      "url": "",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "chrY-no-par.yak",
       "dest_filename": "chrY_no_par.yak",
-      "_comment": "No fixed public download URL; see https://github.com/lh3/yak. Either fill in url once you have one, or place the file at <dest-dir>/chrY_no_par.yak yourself before rerunning."
+      "_comment": "lh3/yak's precomputed chrX/Y/PAR k-mer dumps (https://github.com/lh3/yak, https://zenodo.org/records/7882299); all three yak files below are bundled in this one ~1.2GB tar, downloaded once and shared across them."
     },
     {
       "config_key": "chrX_no_par_yak",
-      "url": "",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "chrX-no-par.yak",
       "dest_filename": "chrX_no_par.yak",
-      "_comment": "Same as chrY_no_par_yak."
+      "_comment": "Same archive as chrY_no_par_yak."
     },
     {
       "config_key": "par_yak",
-      "url": "",
+      "url": "https://zenodo.org/records/7882299/files/human-chrXY-yak.tar?download=1",
+      "archive_member": "par.yak",
       "dest_filename": "par.yak",
-      "_comment": "Same as chrY_no_par_yak."
+      "_comment": "Same archive as chrY_no_par_yak."
     }
   ]
 }
