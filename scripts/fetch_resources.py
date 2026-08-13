@@ -195,6 +195,12 @@ def fetch_all(manifest, dest_dir, progress_interval=10.0):
 
 
 def main():
+  # stdout defaults to fully buffered (not line-buffered) once it isn't a terminal -- e.g.
+  # redirected to a file by a batch scheduler like UGE's qsub -- so without this, progress
+  # lines (and every other print() below) can sit unflushed for a long time rather than
+  # appearing in the job's output file as they're printed.
+  sys.stdout.reconfigure(line_buffering=True)
+
   ap = argparse.ArgumentParser(description=__doc__)
   ap.add_argument("--manifest", required=True, help="JSON manifest; see resources_manifest.example.json")
   ap.add_argument("--dest-dir", required=True, help="Directory to download into / look for already-present files in")
