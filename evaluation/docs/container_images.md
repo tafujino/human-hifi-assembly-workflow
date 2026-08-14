@@ -10,9 +10,14 @@ tag it corresponds to kept as a comment above:
 | `mobinasri/long_read_aligner` | `assembly_stats.wdl`, `asmgene.wdl` |
 | `mobinasri/bio_base` | `summary.wdl` |
 
-`evaluation/workflows/imports/flagger` and `.../calN50` are vendored git submodules, used
-unedited; their own image pins (e.g. `mobinasri/flagger:v1.2.0`) are out of this repository's
-control and out of scope for the checks below.
+`evaluation/workflows/imports/flagger` and `.../calN50` are vendored git submodules that this
+repository does not edit further. That is not the same as pinning pristine upstream for both:
+`flagger` points at [tafujino/flagger](https://github.com/tafujino/flagger), a personal fork
+of `mobinasri/flagger` carrying fixes on top of its `v1.2.0` tag, and its own WDL currently
+defaults to a rebuilt image, `quay.io/tafujino/flagger:v1.2.0-augment-coverage-fix` — not
+`mobinasri/flagger:v1.2.0`. `calN50` points at unmodified upstream
+[lh3/calN50](https://github.com/lh3/calN50). Either way, their own image pins are out of this
+repository's control and out of scope for the checks below.
 
 ## Checking the pins
 

@@ -91,9 +91,10 @@ non-empty). Because the ONT call is conditional, every `flagger_ont_*` output is
 `_ont_` outputs all stay unset when no second run happened. Only the HiFi name is shown
 below — substitute `ont` for `hifi` for the ONT equivalent.
 
-These all come straight from the vendored `mobinasri/flagger` (`HMMFlaggerEndToEndWithMapping`)
-workflow, so file names inside each are whatever that workflow gives them, not something this
-project controls.
+These all come straight from the vendored `flagger` submodule's own
+`HMMFlaggerEndToEndWithMapping` workflow (a fork of `mobinasri/flagger`; see
+[container_images.md](container_images.md)), so file names inside each are whatever that
+workflow gives them, not something this project controls.
 
 **Core prediction/coverage**
 

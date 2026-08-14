@@ -53,9 +53,9 @@ throughout:
 1. **Basic contiguity/composition stats** — total length, N50/NG50, L50/LG50, GC%, computed
    per haplotype and once more for hap1+hap2 combined (`assembly_stats.wdl`).
 2. **Misassembly detection** — HMM-Flagger, run once against the required PacBio HiFi reads
-   and, if ONT reads are also given, once more against those. Reuses
-   [mobinasri/flagger](https://github.com/mobinasri/flagger)'s own end-to-end WDL rather than
-   reimplementing read mapping and the HMM.
+   and, if ONT reads are also given, once more against those. Reuses HMM-Flagger's own
+   end-to-end WDL rather than reimplementing read mapping and the HMM, vendored from a fork
+   of [mobinasri/flagger](https://github.com/mobinasri/flagger) (see [Setup](#setup) below).
 3. **Gene completeness/duplication** — `asmgene.wdl`. Maps a reference cDNA set to CHM13 and
    to each haplotype separately with minimap2, then evaluates with paftools.js `asmgene`.
 
@@ -65,9 +65,18 @@ All three feed one final aggregate summary, `<sample>.assembly_evaluation_summar
 ### Setup
 
 `evaluation/workflows/imports/flagger` and `evaluation/workflows/imports/calN50` are git
-submodules — the official HMM-Flagger WDL and [lh3/calN50](https://github.com/lh3/calN50),
-both vendored unedited and pinned to a specific commit — and are empty right after a plain
-clone. Fetch them first:
+submodules, each pinned to a specific commit and empty right after a plain clone. This
+repository makes no further edits on top of what either submodule pins, but they are not
+both pristine upstream checkouts:
+
+* `flagger` points at [tafujino/flagger](https://github.com/tafujino/flagger), a personal
+  fork of [mobinasri/flagger](https://github.com/mobinasri/flagger) carrying fixes on top of
+  its `v1.2.0` tag — including a rebuilt docker image
+  (`quay.io/tafujino/flagger:v1.2.0-augment-coverage-fix`) that the fork's own WDL defaults
+  to in place of upstream's `mobinasri/flagger:v1.2.0`.
+* `calN50` points at the unmodified upstream [lh3/calN50](https://github.com/lh3/calN50).
+
+Fetch them first:
 
 ```sh
 git submodule update --init --recursive
@@ -131,11 +140,13 @@ The published images redistribute third-party software under its own terms:
 building them into a published image, so no NOTICE is required for either:
 
 * `evaluation/workflows/imports/flagger` —
-  [mobinasri/flagger](https://github.com/mobinasri/flagger) (MIT), pinned to `v1.2.0`, used
-  unedited.
+  [tafujino/flagger](https://github.com/tafujino/flagger) (MIT), a personal fork of
+  [mobinasri/flagger](https://github.com/mobinasri/flagger) carrying fixes on top of its
+  `v1.2.0` tag, pinned to a specific commit.
 * `evaluation/workflows/imports/calN50` — [lh3/calN50](https://github.com/lh3/calN50), pinned
   to a specific commit, used unedited. Upstream ships no LICENSE file.
 
-Both are fetched directly from their own upstream by `git submodule update --init --recursive`
+Both are fetched directly from the repository each submodule points at — the fork above for
+`flagger`, unmodified upstream for `calN50` — by `git submodule update --init --recursive`
 (see [Evaluation pipeline](#evaluation-pipeline)) rather than redistributed by this
 repository.

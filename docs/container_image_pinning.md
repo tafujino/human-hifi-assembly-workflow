@@ -24,11 +24,14 @@ The policy below applies to every project in this repository.
   `mobinasri/bio_base`) is third-party and digest-pinned. Enforced by
   `evaluation/docker/check_images.sh` and CI's `images-evaluation` job. See
   [evaluation/docs/container_images.md](../evaluation/docs/container_images.md).
-* evaluation additionally vendors the flagger/calN50 submodules unedited
-  (`evaluation/workflows/imports/`); their own image pins are out of this repository's
-  control and intentionally out of scope for the check above — there is nothing here to fix
-  if one of them is wrong. `evaluation/docker/check_images.sh --list-reachable` separately
-  enumerates them for pre-build/caching purposes only; see
+* evaluation additionally vendors the flagger/calN50 submodules
+  (`evaluation/workflows/imports/`) as-is — this repository makes no further edits on top of
+  what each submodule pins. (The `flagger` submodule itself is a personal fork of
+  `mobinasri/flagger`, not upstream directly; see
+  [evaluation/docs/container_images.md](../evaluation/docs/container_images.md) for what that
+  means for its image pin.) Their own image pins are out of this repository's control and
+  intentionally out of scope for the check above. `evaluation/docker/check_images.sh
+  --list-reachable` separately enumerates them for pre-build/caching purposes only; see
   [evaluation/docs/container_images.md](../evaluation/docs/container_images.md#check_imagessh)
   for what it does and does not cover.
 
