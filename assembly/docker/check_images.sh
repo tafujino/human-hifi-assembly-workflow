@@ -18,8 +18,16 @@
 # cannot read OCI image indexes.
 #
 # Usage:
-#   assembly/docker/check_images.sh          # check that every pinned image is resolvable
-#   assembly/docker/check_images.sh --list   # just print the pinned images, one per line
+#   assembly/docker/check_images.sh              # check that every pinned image is resolvable
+#   assembly/docker/check_images.sh --list        # just print the pinned images, one per line
+#   assembly/docker/check_images.sh --list-reachable  # same list, under evaluation's flag name
+#
+# --list-reachable is an alias for --list here, not a separate mode: unlike evaluation, this
+# project vendors no submodules and no call site overrides a task's `docker` default, so the
+# images grepped from assembly/workflows/*.wdl already are every image a real run can pull --
+# there is no broader "reachable" set to compute. The alias exists only so a cache-pre-warming
+# script can invoke `docker/check_images.sh --list-reachable` the same way in both projects
+# (see evaluation/docker/check_images.sh) without special-casing assembly.
 
 set -euo pipefail
 
@@ -40,10 +48,12 @@ if [[ -z "$images" ]]; then
   exit 1
 fi
 
-if [[ "${1:-}" == "--list" ]]; then
-  printf '%s\n' "$images"
-  exit 0
-fi
+case "${1:-}" in
+  --list | --list-reachable)
+    printf '%s\n' "$images"
+    exit 0
+    ;;
+esac
 
 status=0
 while IFS= read -r image; do

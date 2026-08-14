@@ -35,6 +35,14 @@ because it queries the registry HTTP API directly. `assembly/docker/check_images
 the pinned images on demand; no separate manifest file is committed, so there is nothing to
 keep in sync.
 
+`--list-reachable` prints the same list — it's an alias for `--list` here, not a separate
+computation. Unlike [evaluation](../../evaluation/docs/container_images.md#checking-the-pins),
+this project vendors no submodules and no call site overrides a task's `docker` default, so
+the images grepped from the WDL sources already are everything a real run can pull; there is
+no broader "reachable" set for miniwdl to resolve. The alias just lets a
+cache-pre-warming step invoke `docker/check_images.sh --list-reachable` the same way in both
+projects.
+
 The image list comes from the WDL sources rather than a hand-kept manifest, so it cannot
 drift out of sync with what the workflow actually runs. This catches the kind of error that
 WDL validation cannot: a tag whose build-hash suffix belongs to a different version exists
