@@ -49,6 +49,11 @@ explain each one. Eight are worth calling out:
   the human rCRS (`NC_012920.1`); see
   [mitochondrial.md](mitochondrial.md) for how to fetch it.
   These are supplied explicitly instead of being downloaded during the run.
+* **`output_trimmed_fastq`** — off by default, so `trimmed_fastq` (below) is not delivered.
+  Turn it on to get a copy of it, e.g. to evaluate the assembly against the exact reads it
+  was built from later. [end_to_end/workflows/end_to_end_assembly.wdl](../../end_to_end/workflows/end_to_end_assembly.wdl)
+  turns this on unconditionally to feed its own evaluation step, without exposing it as a
+  choice at that level.
 
 ## Outputs
 
@@ -166,7 +171,7 @@ there to make auditable.
 
 | Output | File | Contents |
 | --- | --- | --- |
-| `trimmed_fastq` | `<sample>.trimmed.fastq.gz` | Reads given to hifiasm |
+| `trimmed_fastq` | `<sample>.trimmed.fastq.gz` | Reads given to hifiasm. Present only when `output_trimmed_fastq` is set; absent by default |
 | `cutadapt_report` | `<sample>.cutadapt.log` | How many reads were discarded, and why |
 | `cutadapt_stats` | `<sample>.cutadapt_stats.tsv` | The same discard rate as a number: `reads_processed`, `reads_discarded`, `discard_perc` |
 | `raw_read_stats` | `<sample>.raw.seqkit_stats.tsv` | `seqkit stats -a -T` before trimming |

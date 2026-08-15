@@ -25,7 +25,11 @@ version 1.0
 ## AssemblyEvaluation's hifi_read_files is not a separate top-level input at all: it is set
 ## to HifiAssembly's own trimmed_fastq output, so evaluation runs against the exact read set
 ## hifiasm actually assembled from (adapters and C2 primers already removed) rather than the
-## raw unaligned_bams.
+## raw unaligned_bams. HifiAssembly's own output_trimmed_fastq input (off by default, since
+## trimmed_fastq can reach tens of GB) is therefore turned on unconditionally in the call
+## below rather than exposed here: this workflow always needs the file internally, and
+## trimmed_fastq is not itself a top-level output of this workflow (unlike of HifiAssembly
+## run on its own), so there is nothing for a caller to opt into or out of.
 ##
 ## The two calls below are plain, unmodified calls to the existing top-level workflows.
 ## AssemblyEvaluation's own call therefore cannot start until HifiAssembly's hap1/hap2
@@ -144,19 +148,24 @@ workflow EndToEndAssembly {
       par_yak = par_yak,
       use_pansn_contig_names = use_pansn_contig_names,
       mito_reference_fasta = mito_reference_fasta,
-      mito_reference_gb = mito_reference_gb
+      mito_reference_gb = mito_reference_gb,
+      # Not exposed as a top-level input of this workflow: RunEvaluation below always needs
+      # RunAssembly's trimmed_fastq, so this is turned on unconditionally rather than left
+      # for a caller to set. See the header comment.
+      output_trimmed_fastq = true
   }
 
   # hifi_read_files is RunAssembly's own trimmed_fastq, not unaligned_bams: evaluation runs
   # against the exact reads hifiasm assembled from, adapters and C2 primers already removed
-  # (see the header comment). ont_read_files reuses the same ont_ul_fastq given to hifiasm's
-  # --ul above.
+  # (see the header comment). select_first unwraps the File? that output_trimmed_fastq = true,
+  # above, guarantees is defined. ont_read_files reuses the same ont_ul_fastq given to
+  # hifiasm's --ul above.
   call assembly_evaluation_wf.AssemblyEvaluation as RunEvaluation {
     input:
       sample_name = sample_name,
       hap1_assembly_fasta = RunAssembly.hap1_contigs_fasta_gz,
       hap2_assembly_fasta = RunAssembly.hap2_contigs_fasta_gz,
-      hifi_read_files = [RunAssembly.trimmed_fastq],
+      hifi_read_files = [select_first([RunAssembly.trimmed_fastq])],
       ont_read_files = ont_ul_fastq,
       ont_preset = ont_preset,
       reference_cdna_fasta = reference_cdna_fasta,
@@ -183,8 +192,10 @@ workflow EndToEndAssembly {
 
   output {
     # --- HifiAssembly ---
+    # trimmed_fastq is deliberately not among these: it can reach tens of GB, and this
+    # workflow only ever needs it internally, to feed RunEvaluation above (see the header
+    # comment and the RunAssembly call's output_trimmed_fastq = true).
     File raw_read_stats = RunAssembly.raw_read_stats
-    File trimmed_fastq = RunAssembly.trimmed_fastq
     File cutadapt_report = RunAssembly.cutadapt_report
     File cutadapt_stats = RunAssembly.cutadapt_stats
     File read_stats = RunAssembly.read_stats

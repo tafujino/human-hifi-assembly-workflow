@@ -36,6 +36,12 @@ needs that specific input or behavior. Omitting them here means those defaults k
 without this file having to be kept in sync if the defaults ever change. See
 [pipeline.md](pipeline.md#inputs) for what each one does.
 
+Also left out: `output_trimmed_fastq`, off by default since the file it delivers,
+`trimmed_fastq`, can reach tens of GB. Unlike the fields above, it has no sample-sheet
+counterpart in [generate_inputs.md](generate_inputs.md) -- it is a debugging/inspection knob
+rather than a per-sample choice, so turn it on by hand-editing a generated `inputs.json`
+when the trimmed reads themselves are actually needed.
+
 See [generate_inputs.md](generate_inputs.md) for generating one `inputs.json` per sample
 (including `ont_ul_fastq`/`paternal_illumina_fastq`/`maternal_illumina_fastq`, and any of the
 optional knobs above a specific sample needs to override, e.g. `assemble_mitogenome`) instead

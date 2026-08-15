@@ -80,6 +80,7 @@ workflow HifiAssembly {
     chrX_no_par_yak: "Pretrained chrX-without-PAR k-mer database from the yak repository."
     par_yak: "Pretrained pseudoautosomal-region k-mer database from the yak repository."
     use_pansn_contig_names: "Rename the final contigs to PanSN-spec form, sample#haplotype#contig, keeping hifiasm's name as the third field. On by default. Off leaves hifiasm's bare names, which is what a consumer joining the delivered contig ID lists to the FASTA by exact match wants."
+    output_trimmed_fastq: "Deliver trimmed_fastq, the full trimmed HiFi read set given to hifiasm, as a workflow output. Off by default, since this file can reach tens of GB and every step that needs it already reads it directly from TrimAdapters. Turn it on to get a copy of the exact reads hifiasm assembled from, e.g. for evaluating the assembly against them later."
     mito_reference_fasta: "Closely related mitogenome in FASTA, e.g. the human rCRS (NC_012920.1). Must be plain text."
     mito_reference_gb: "The same mitogenome in GenBank format. Must be plain text."
   }
@@ -129,6 +130,11 @@ workflow HifiAssembly {
     # out of. Turn it off to keep hifiasm's bare names, e.g. for a consumer that cannot cope
     # with "#" or that joins the delivered ID lists to the FASTA by exact match.
     Boolean use_pansn_contig_names = true
+    # Off by default: trimmed_fastq (the full trimmed HiFi read set) can reach tens of GB,
+    # and nothing downstream reads it as a workflow output -- every step that needs it
+    # (ComputeReadStats, EstimateHomCoverage, AssembleMito, HifiasmAssembly) takes it
+    # directly from TrimAdapters. See the output block below.
+    Boolean output_trimmed_fastq = false
     File mito_reference_fasta
     File mito_reference_gb
   }
@@ -170,6 +176,14 @@ workflow HifiAssembly {
     input:
       fastq = ConvertBamToFastq.fastq,
       output_prefix = sample_name
+  }
+
+  # Guards whether trimmed_fastq is delivered as a workflow output, below; every step that
+  # actually needs the trimmed reads (ComputeReadStats immediately below, EstimateHomCoverage,
+  # AssembleMito, HifiasmAssembly) takes them from TrimAdapters.trimmed_fastq directly and
+  # does not depend on this.
+  if (output_trimmed_fastq) {
+    File trimmed_fastq_opt = TrimAdapters.trimmed_fastq
   }
 
   call seqkit_wf.SeqkitStats as ComputeReadStats {
@@ -296,7 +310,11 @@ workflow HifiAssembly {
 
   output {
     File raw_read_stats = ComputeRawReadStats.stats
-    File trimmed_fastq = TrimAdapters.trimmed_fastq
+
+    # Present only when output_trimmed_fastq was turned on; see that input and the
+    # conditional block above. Absent by default because this file (the full trimmed HiFi
+    # read set) can reach tens of GB.
+    File? trimmed_fastq = trimmed_fastq_opt
     File cutadapt_report = TrimAdapters.report
     File cutadapt_stats = TrimAdapters.stats
     File read_stats = ComputeReadStats.stats

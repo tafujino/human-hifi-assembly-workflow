@@ -29,7 +29,10 @@ Three are not:
 `AssemblyEvaluation`'s `hifi_read_files` is not exposed as a top-level input at all:
 `EndToEndAssembly` sets it to `HifiAssembly`'s own `trimmed_fastq` output, so evaluation runs
 against the exact reads hifiasm assembled from (adapters and C2 primers already removed)
-rather than the raw `unaligned_bams`. `sample_sex` has no `AssemblyEvaluation` counterpart and
+rather than the raw `unaligned_bams`. `HifiAssembly`'s own `output_trimmed_fastq` input (off
+by default, since this file can reach tens of GB) is likewise not exposed here: it is turned
+on unconditionally in the internal call to `HifiAssembly`, since this workflow always needs
+the file to build `hifi_read_files` above. `sample_sex` has no `AssemblyEvaluation` counterpart and
 is forwarded to `HifiAssembly` alone; everything under "Forwarded to AssemblyEvaluation only"
 in `parameter_meta` (`reference_cdna_fasta`, `projection_reference_fasta`, `cal_n50_script`,
 `summarize_script`, the flagger/asmgene knobs, ...) has no `HifiAssembly` counterpart and is
@@ -39,8 +42,13 @@ new relative to `HifiAssembly`'s own input surface — see
 ## Outputs
 
 Every `HifiAssembly` output and every `AssemblyEvaluation` output, unchanged in name and
-content — see the two linked documents above for what each one is. There is no naming
-collision between the two sets, so nothing is renamed or prefixed here.
+content, with one exception: **`trimmed_fastq` is not among them.** `HifiAssembly` produces
+it internally (see above) and it is used to build `AssemblyEvaluation`'s `hifi_read_files`,
+but it is never delivered as a top-level output of this workflow — unlike running
+`HifiAssembly` on its own, where setting `output_trimmed_fastq` delivers it. This file can
+reach tens of GB, and nothing outside this workflow needs the copy.
+Otherwise there is no naming collision between the two sets, so nothing is renamed or
+prefixed here.
 
 ## Setup
 
